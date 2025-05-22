@@ -127,13 +127,16 @@ int_account_skus as (
 -- Counting # of tickets per channel
 with all_tickets as (
     select
-        instance_account_id,
-        date_trunc('day', min(source_snapshot_date)) as first_ticket_created_date,
+        tickets.instance_account_id,
+        date_trunc('day', min(tickets.source_snapshot_date)) as first_ticket_created_date,
         -- Total tickets created
         sum(count_created_tickets) as total_tickets,
+        sum(case when ticket_via_id in (51, 52) then count_created_tickets end) as total_sample_tickets,
         -- Total tickets closed & solved flag
         sum(count_closed_tickets) as total_solved_tickets,
+        sum(case when ticket_via_id in (51, 52) then count_closed_tickets end) as total_solved_sample_tickets,
         case when total_solved_tickets > 0 then 1 else 0 end as ticket_solved_flag,
+        case when total_solved_sample_tickets > 0 then 1 else 0 end as ticket_sample_solved_flag,
         -- Total tickets created by channel
         sum(case when ticket_via_id in (33, 34, 35, 44, 45, 46) then count_created_tickets end) as talk_tickets,
         sum(case when ticket_via_id in (29) then count_created_tickets end) as chat_tickets,
@@ -147,17 +150,209 @@ with all_tickets as (
     inner join foundational.customer.dim_instance_accounts_daily_snapshot_bcv instance_accounts_bcv
         on tickets.instance_account_id = instance_accounts_bcv.instance_account_id
         and tickets.source_snapshot_date >= instance_accounts_bcv.instance_account_created_timestamp
-    where
-        -- excludes sample tickets
-        ticket_via_id not in (51, 52)
     group by
-        instance_account_id
+        tickets.instance_account_id
 )
+
+select *
+from all_tickets
+limit 10
+
+-----------------------------------------------
+-- 6. Agent comments
+-- Table is in snowflake regional (AMER)
+-- This query is REALLY SLOW because the table is huge. 
+-- I could not get this query to run. 
+--We might need help from product analytics to get this data
+with ticket_comments as (
+    select instance_account_id, count(*) as total_comments
+    from cleansed.product_support.base_ticket_comment_events comments
+    where date(created_timestamp) >= '2025-05-01'
+    and instance_account_id = 18288435
+    group by instance_account_id
+)
+
+select *
+from ticket_comments
+limit 10
+
+--- Example of comments for one account
+select *
+from cleansed.product_support.base_ticket_comment_events comments
+where date(created_timestamp) >= '2025-05-01'
+and instance_account_id = 18288435
+limit 100
 
 
 
 -----------------------------------------------
--- 6. Tickets
--- Counting # of tickets per channel
+-- 7. Number of active agents
+with active_agents as (
+    select
+        instance_account_id, 
+        count(distinct agent_id) as num_agents
+    from propagated_foundational.product_agent_info.dim_agent_emails_bcv
+    where agent_is_active = True
+    group by instance_account_id
+)
+
+select *
+from active_agents
+limit 10
+
+
+
+-----------------------------------------------
+-- 8. Help center articles
+
+select account_id, count(distinct id) 
+from formatted.sharddb.hc_articles 
+group by 1
+
+
+-----------------------------------------------
+-- 10. All plans, buy your trial & other views
+
+
+all_plans_cta as ( -- Triggered by clicking on "Compare Plans" CTA
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product,
+        'Compare plans' as cta_name
+    from
+        {{ ref('cleansed_segment', 'segment_billing_cart_loaded_scd2') }}
+    where
+        not paid_customer
+        and (cart_screen in ('preset_all_plans', 'preset_support', 'presets', 'preset_suite') or (cart_screen is null and cart_step in ('multi_step_plan', 'multi_step_customization')))  --> CTA specific filter
+        and cart_type = 'spp_self_service'
+
+    union all
+
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product,
+        'Compare plans' as cta_name
+    from
+        {{ ref('cleansed_segment', 'segment_billing_payment_loaded_scd2') }}
+    where
+        not paid_customer
+        and (cart_screen in ('preset_all_plans', 'preset_support', 'presets', 'preset_suite') or (cart_screen is null and cart_step in ('multi_step_plan', 'multi_step_customization', 'multi_step_payment'))) --> CTA specific filter
+        and cart_type = 'spp_self_service'
+),
+
+buy_your_trial_cta as ( -- Triggered by clicking on "Buy Trial Plan" CTA
+
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product,
+        'Buy Trial Plan' as cta_name
+    from
+        {{ ref('cleansed_segment', 'segment_billing_cart_loaded_scd2') }}
+    where
+        not paid_customer
+        and cart_screen = 'preset_trial_plan'
+        and cart_type = 'spp_self_service'
+
+    union all
+
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product,
+        'Buy Trial Plan' as cta_name
+    from
+        {{ ref('cleansed_segment', 'segment_billing_payment_loaded_scd2') }}
+    where
+        not paid_customer
+        and cart_screen = 'preset_trial_plan' --> CTA specific filter
+        and cart_type = 'spp_self_service'
+),
+
+ga_trial_accounts as (
+    select distinct
+        instance_account_id as account_id,
+        instance_account_arr_usd_at_win as arr,
+        win_date as win_date,
+        paid_products_at_win as paid_products,
+        core_base_plan_at_win as core_base_plan,
+        is_startup_program as startup_flag,
+        seats_capacity_at_win as seats_at_win,
+        instance_account_created_date
+    from
+        {{ ref('trial_accounts') }}
+    where
+        win_date is not null
+        and sales_model_at_win <> 'Assisted'
+        and not is_direct_buy
+),
+
+other_cta as ( -- Triggered by clicking on "Compare Plans" CTA
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product,
+        'Other' as cta_name
+    from
+        {{ ref('cleansed_segment', 'segment_billing_cart_loaded_scd2') }}
+    where
+        not paid_customer
+        and cart_screen not in ('preset_all_plans', 'preset_support', 'presets', 'preset_suite', 'preset_trial_plan') --> CTA specific filter
+        and cart_type = 'spp_self_service'
+
+    union all
+
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product,
+        'Other' as cta_name
+    from
+        {{ ref('cleansed_segment', 'segment_billing_payment_loaded_scd2') }}
+    where
+        not paid_customer
+        and cart_screen not in ('preset_all_plans', 'preset_support', 'presets', 'preset_suite', 'preset_trial_plan') --> CTA specific filter
+        and cart_type = 'spp_self_service'
+),
+
+cart_entrances as (
+    select *
+    from
+        all_plans_cta
+    union all
+    select *
+    from
+        buy_your_trial_cta
+    union all
+    select *
+    from
+        other_cta
+),
 
 
