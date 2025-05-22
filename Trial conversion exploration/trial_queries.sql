@@ -39,7 +39,7 @@ with last_cart_visit as (
         -- This join is done to make sure we are counting cart visits after the account was created
     inner join foundational.customer.dim_instance_accounts_daily_snapshot_bcv instance_accounts_bcv
         on segment_cart_data.account_id = instance_accounts_bcv.instance_account_id
-        and instance_accounts_bcv.instance_account_created_timestamp >= segment_cart_data.original_timestamp
+        and segment_cart_data.original_timestamp >= instance_accounts_bcv.instance_account_created_timestamp
     where
         instance_accounts_bcv.instance_account_is_trial = True
     group by segment_cart_data.account_id
@@ -125,7 +125,6 @@ int_account_skus as (
 -----------------------------------------------
 -- 5. Tickets
 -- Counting # of tickets per channel
--- Adjust to filter by trial created date
 with all_tickets as (
     select
         instance_account_id,
@@ -144,7 +143,10 @@ with all_tickets as (
         sum(case when ticket_via_id in (0) then count_created_tickets end) as web_form_tickets,
         sum(case when ticket_via_id in (1, 4) then count_created_tickets end) as mail_tickets
     from
-        propagated_functional.product_analytics.fact_aggregated_tickets_data_daily_snapshot
+        propagated_functional.product_analytics.fact_aggregated_tickets_data_daily_snapshot tickets
+    inner join foundational.customer.dim_instance_accounts_daily_snapshot_bcv instance_accounts_bcv
+        on tickets.instance_account_id = instance_accounts_bcv.instance_account_id
+        and tickets.source_snapshot_date >= instance_accounts_bcv.instance_account_created_timestamp
     where
         -- excludes sample tickets
         ticket_via_id not in (51, 52)
@@ -153,5 +155,9 @@ with all_tickets as (
 )
 
 
+
+-----------------------------------------------
+-- 6. Tickets
+-- Counting # of tickets per channel
 
 
