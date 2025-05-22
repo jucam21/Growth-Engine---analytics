@@ -211,12 +211,18 @@ group by 1
 
 
 -----------------------------------------------
--- 10. All plans, buy your trial & other views
+-- 10. Pricing and plan page visits
+-- Trials can enter the cart through different CTAs:
+-- all plans, buy your trial, and other.
 
+-- When a customer enters the cart, two segment events are fired:
+-- segment_billing_cart_loaded_scd2 & segment_billing_payment_loaded_scd2
+-- To be general, we combine both events into one table.
 
-all_plans_cta as ( -- Triggered by clicking on "Compare Plans" CTA
+-- The filters are defined for each type of CTA
+with all_plans_cta as ( -- Triggered by clicking on "Compare Plans" CTA
     select distinct
-        timestamp,
+        date(timestamp),
         session_id,
         user_id,
         account_id,
@@ -225,7 +231,7 @@ all_plans_cta as ( -- Triggered by clicking on "Compare Plans" CTA
         product,
         'Compare plans' as cta_name
     from
-        {{ ref('cleansed_segment', 'segment_billing_cart_loaded_scd2') }}
+        cleansed.segment_billing.segment_billing_cart_loaded_scd2
     where
         not paid_customer
         and (cart_screen in ('preset_all_plans', 'preset_support', 'presets', 'preset_suite') or (cart_screen is null and cart_step in ('multi_step_plan', 'multi_step_customization')))  --> CTA specific filter
@@ -234,7 +240,7 @@ all_plans_cta as ( -- Triggered by clicking on "Compare Plans" CTA
     union all
 
     select distinct
-        timestamp,
+        date(timestamp),
         session_id,
         user_id,
         account_id,
@@ -243,7 +249,7 @@ all_plans_cta as ( -- Triggered by clicking on "Compare Plans" CTA
         product,
         'Compare plans' as cta_name
     from
-        {{ ref('cleansed_segment', 'segment_billing_payment_loaded_scd2') }}
+        cleansed.segment_billing.segment_billing_payment_loaded_scd2
     where
         not paid_customer
         and (cart_screen in ('preset_all_plans', 'preset_support', 'presets', 'preset_suite') or (cart_screen is null and cart_step in ('multi_step_plan', 'multi_step_customization', 'multi_step_payment'))) --> CTA specific filter
@@ -253,7 +259,7 @@ all_plans_cta as ( -- Triggered by clicking on "Compare Plans" CTA
 buy_your_trial_cta as ( -- Triggered by clicking on "Buy Trial Plan" CTA
 
     select distinct
-        timestamp,
+        date(timestamp),
         session_id,
         user_id,
         account_id,
@@ -262,7 +268,7 @@ buy_your_trial_cta as ( -- Triggered by clicking on "Buy Trial Plan" CTA
         product,
         'Buy Trial Plan' as cta_name
     from
-        {{ ref('cleansed_segment', 'segment_billing_cart_loaded_scd2') }}
+        cleansed.segment_billing.segment_billing_cart_loaded_scd2
     where
         not paid_customer
         and cart_screen = 'preset_trial_plan'
@@ -271,7 +277,7 @@ buy_your_trial_cta as ( -- Triggered by clicking on "Buy Trial Plan" CTA
     union all
 
     select distinct
-        timestamp,
+        date(timestamp),
         session_id,
         user_id,
         account_id,
@@ -280,34 +286,16 @@ buy_your_trial_cta as ( -- Triggered by clicking on "Buy Trial Plan" CTA
         product,
         'Buy Trial Plan' as cta_name
     from
-        {{ ref('cleansed_segment', 'segment_billing_payment_loaded_scd2') }}
+        cleansed.segment_billing.segment_billing_payment_loaded_scd2
     where
         not paid_customer
         and cart_screen = 'preset_trial_plan' --> CTA specific filter
         and cart_type = 'spp_self_service'
 ),
 
-ga_trial_accounts as (
-    select distinct
-        instance_account_id as account_id,
-        instance_account_arr_usd_at_win as arr,
-        win_date as win_date,
-        paid_products_at_win as paid_products,
-        core_base_plan_at_win as core_base_plan,
-        is_startup_program as startup_flag,
-        seats_capacity_at_win as seats_at_win,
-        instance_account_created_date
-    from
-        {{ ref('trial_accounts') }}
-    where
-        win_date is not null
-        and sales_model_at_win <> 'Assisted'
-        and not is_direct_buy
-),
-
 other_cta as ( -- Triggered by clicking on "Compare Plans" CTA
     select distinct
-        timestamp,
+        date(timestamp),
         session_id,
         user_id,
         account_id,
@@ -316,7 +304,7 @@ other_cta as ( -- Triggered by clicking on "Compare Plans" CTA
         product,
         'Other' as cta_name
     from
-        {{ ref('cleansed_segment', 'segment_billing_cart_loaded_scd2') }}
+        cleansed.segment_billing.segment_billing_cart_loaded_scd2
     where
         not paid_customer
         and cart_screen not in ('preset_all_plans', 'preset_support', 'presets', 'preset_suite', 'preset_trial_plan') --> CTA specific filter
@@ -325,7 +313,7 @@ other_cta as ( -- Triggered by clicking on "Compare Plans" CTA
     union all
 
     select distinct
-        timestamp,
+        date(timestamp),
         session_id,
         user_id,
         account_id,
@@ -334,7 +322,7 @@ other_cta as ( -- Triggered by clicking on "Compare Plans" CTA
         product,
         'Other' as cta_name
     from
-        {{ ref('cleansed_segment', 'segment_billing_payment_loaded_scd2') }}
+        cleansed.segment_billing.segment_billing_payment_loaded_scd2
     where
         not paid_customer
         and cart_screen not in ('preset_all_plans', 'preset_support', 'presets', 'preset_suite', 'preset_trial_plan') --> CTA specific filter
@@ -354,5 +342,29 @@ cart_entrances as (
     from
         other_cta
 ),
+
+aggregated_cart_entrances as (
+    select 
+        account_id,
+        count(distinct session_id) as total_sessions,
+        -- all plans sessions
+        count(distinct case when cta_name = 'Compare plans' then session_id end) as all_plans_sessions,
+        -- buy your trial sessions
+        count(distinct case when cta_name = 'Buy Trial Plan' then session_id end) as buy_your_trial_sessions,
+        -- other sessions
+        count(distinct case when cta_name = 'Other' then session_id end) as other_sessions,
+        -- Flags for each CTA
+        case when all_plans_sessions > 0 then 1 else 0 end as all_plans_flag,
+        case when buy_your_trial_sessions > 0 then 1 else 0 end as buy_your_trial_flag,
+        case when other_sessions > 0 then 1 else 0 end as other_flag
+    from 
+        cart_entrances
+    group by
+        account_id
+)
+
+select *
+from aggregated_cart_entrances
+limit 10
 
 
