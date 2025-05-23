@@ -205,9 +205,69 @@ limit 10
 -----------------------------------------------
 -- 8. Help center articles
 
-select account_id, count(distinct id) 
-from formatted.sharddb.hc_articles 
-group by 1
+select 
+    instance_account_id, 
+    count(distinct guide_article_id) total_help_center_articles,
+    case when hca_counts > 0 then 1 else 0 end as help_center_created_flag
+from propagated_cleansed.product_guide.base_guide_articles
+group by all
+limit 10
+
+
+
+
+-----------------------------------------------
+-- 9. Payment page visits
+
+with payment_page_visits as (
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product
+    from
+        cleansed.segment_billing.segment_billing_cart_loaded_scd2
+    where
+        not paid_customer
+        and cart_step = 'multi_step_payment'
+        and cart_type = 'spp_self_service'
+
+    union all
+
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product
+    from
+        cleansed.segment_billing.segment_billing_payment_loaded_scd2
+    where
+        not paid_customer
+        and cart_step = 'multi_step_payment'
+        and cart_type = 'spp_self_service'
+),
+
+aggregated_payment_page_visits as (
+    select 
+        account_id,
+        count(distinct session_id) as total_payment_page_visits,
+        case when total_payment_page_visits > 0 then 1 else 0 end as payment_page_flag
+    from 
+        payment_page_visits
+    group by
+        account_id
+)
+
+select *
+from aggregated_payment_page_visits
+limit 10
+
 
 
 -----------------------------------------------
@@ -346,17 +406,17 @@ cart_entrances as (
 aggregated_cart_entrances as (
     select 
         account_id,
-        count(distinct session_id) as total_sessions,
+        count(distinct session_id) as total_cart_visits,
         -- all plans sessions
-        count(distinct case when cta_name = 'Compare plans' then session_id end) as all_plans_sessions,
+        count(distinct case when cta_name = 'Compare plans' then session_id end) as pricing_plan_page_visits,
         -- buy your trial sessions
-        count(distinct case when cta_name = 'Buy Trial Plan' then session_id end) as buy_your_trial_sessions,
+        count(distinct case when cta_name = 'Buy Trial Plan' then session_id end) as buy_your_trial_visits,
         -- other sessions
-        count(distinct case when cta_name = 'Other' then session_id end) as other_sessions,
+        count(distinct case when cta_name = 'Other' then session_id end) as other_visits,
         -- Flags for each CTA
-        case when all_plans_sessions > 0 then 1 else 0 end as all_plans_flag,
-        case when buy_your_trial_sessions > 0 then 1 else 0 end as buy_your_trial_flag,
-        case when other_sessions > 0 then 1 else 0 end as other_flag
+        case when pricing_plan_page_visits > 0 then 1 else 0 end as all_plans_flag,
+        case when buy_your_trial_visits > 0 then 1 else 0 end as buy_your_trial_flag,
+        case when other_visits > 0 then 1 else 0 end as other_flag
     from 
         cart_entrances
     group by
@@ -368,3 +428,58 @@ from aggregated_cart_entrances
 limit 10
 
 
+-----------------------------------------------
+-- 11. Verified trial
+with verified_dates as (
+select
+    instance_account_id, 
+    source_snapshot_timestamp as first_verified_timestamp, 
+from propagated_foundational.product_agent_info.dim_agent_emails_daily_snapshot
+where 
+    agent_is_verified = true
+    and agent_is_owner = true
+    and date(created_timestamp) >= '2025-01-01'
+group by instance_account_id, first_verified_timestamp  
+qualify rank() over (partition by instance_account_id order by first_verified_timestamp) = 1
+), 
+
+verified_date_email as (
+select
+    instance_account_id, 
+    date(min(first_verified_timestamp)) as first_verified_date,
+    1 as verified_flag
+from verified_dates
+group by instance_account_id
+)
+
+select *
+from verified_date_email
+limit 10
+
+
+-----------------------------------------------
+-- 12. External email connected 
+with connect_email_dates as (			
+select			
+    source_snapshot_date,
+    support_address_instance_account_id AS instance_account_id,
+    support_address_num_external_verified_addresses
+from propagated_foundational.product_user_entities.dim_support_addresses_aggregated_daily_snapshot
+), 
+
+connected_email AS (			
+select						
+    instance_account_id,
+    min(
+        case
+            when 
+                coalesce(support_address_num_external_verified_addresses, 0) > 0 then date(source_snapshot_date)
+        end) as external_email_connected_date,
+    1 as external_email_connected_flag
+from connect_email_dates			
+group by 1			
+)	
+
+select *
+from connected_email
+limit 10
