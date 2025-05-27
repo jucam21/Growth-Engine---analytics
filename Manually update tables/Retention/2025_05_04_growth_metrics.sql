@@ -286,6 +286,11 @@ unique_obs_future_dates as (
         *,
         -- Adding X months or years to the renewal date based on the subscription term type
         case
+            when subscription_term_type = 'monthly' then dateadd(month, 0, subscription_renewal_date)
+            when subscription_term_type = 'annual' then dateadd(year, 0, subscription_renewal_date)
+            else null
+        end as renewal_p0_date,
+        case
             when subscription_term_type = 'monthly' then dateadd(month, 1, subscription_renewal_date)
             when subscription_term_type = 'annual' then dateadd(year, 1, subscription_renewal_date)
             else null
@@ -312,6 +317,7 @@ unique_obs_future_dates as (
         end as renewal_p5_date,
         -- Determining if the renewal date have passed
         -- Customers available to renew on each future date
+        case when renewal_p0_date <= last_date_finance then 1 else 0 end as renewal_p0_date_passed,
         case when renewal_p1_date <= last_date_finance then 1 else 0 end as renewal_p1_date_passed,
         case when renewal_p2_date <= last_date_finance then 1 else 0 end as renewal_p2_date_passed,
         case when renewal_p3_date <= last_date_finance then 1 else 0 end as renewal_p3_date_passed,
@@ -327,24 +333,30 @@ unique_retention_curves as (
         a.*,
         -- Creating flags for dashboard
         -- ARR that was renewed on each future date
+        renewal_0.net_arr_usd as renewed_p0_arr,
         renewal_1.net_arr_usd as renewed_p1_arr,
         renewal_2.net_arr_usd as renewed_p2_arr,
         renewal_3.net_arr_usd as renewed_p3_arr,
         renewal_4.net_arr_usd as renewed_p4_arr,
         renewal_5.net_arr_usd as renewed_p5_arr,
         --- ARR available to renew
-        case when renewal_p1_date_passed = 1 then net_arr_usd_instance else null end as renewal_p1_arr_passed,
-        case when renewal_p2_date_passed = 1 then net_arr_usd_instance else null end as renewal_p2_arr_passed,
-        case when renewal_p3_date_passed = 1 then net_arr_usd_instance else null end as renewal_p3_arr_passed,
-        case when renewal_p4_date_passed = 1 then net_arr_usd_instance else null end as renewal_p4_arr_passed,
-        case when renewal_p5_date_passed = 1 then net_arr_usd_instance else null end as renewal_p5_arr_passed,
+        case when renewal_p0_date_passed = 1 then net_arr_usd_instance else 0 end as renewal_p0_arr_passed,
+        case when renewal_p1_date_passed = 1 then net_arr_usd_instance else 0 end as renewal_p1_arr_passed,
+        case when renewal_p2_date_passed = 1 then net_arr_usd_instance else 0 end as renewal_p2_arr_passed,
+        case when renewal_p3_date_passed = 1 then net_arr_usd_instance else 0 end as renewal_p3_arr_passed,
+        case when renewal_p4_date_passed = 1 then net_arr_usd_instance else 0 end as renewal_p4_arr_passed,
+        case when renewal_p5_date_passed = 1 then net_arr_usd_instance else 0 end as renewal_p5_arr_passed,
         -- Flag if customer renewed on each future date
+        case when renewed_p0_arr > 0 then 1 else 0 end as renewed_p0_account,
         case when renewed_p1_arr > 0 then 1 else 0 end as renewed_p1_account,
         case when renewed_p2_arr > 0 then 1 else 0 end as renewed_p2_account,
         case when renewed_p3_arr > 0 then 1 else 0 end as renewed_p3_account,
         case when renewed_p4_arr > 0 then 1 else 0 end as renewed_p4_account,
         case when renewed_p5_arr > 0 then 1 else 0 end as renewed_p5_account
     from unique_obs_future_dates as a
+        left join daily_arr as renewal_0
+            on a.account_id = renewal_0.zendesk_account_id
+            and a.renewal_p0_date = renewal_0.service_date
         left join daily_arr as renewal_1
             on a.account_id = renewal_1.zendesk_account_id
             and a.renewal_p1_date = renewal_1.service_date
