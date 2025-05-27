@@ -483,3 +483,31 @@ group by 1
 select *
 from connected_email
 limit 10
+
+
+-----------------------------------------------
+-- 13. Opportunity stage rep name
+-- Have to join CRM id to instance account id for joining this data
+
+with opportunity_owner as (
+    select distinct
+        slfc_opp.account_id as crm_account_id,
+        slfc_opp.id as crm_opportunity_id,
+        slfc_acc.name as crm_account_name,
+        daily_opps.opportunity_created_date,
+        --  SALES_REP_NAME,
+        users_daily.user_name as rep_name
+    FROM foundational.customer.dim_crm_opportunities_daily_snapshot_bcv daily_opps
+    left join cleansed.salesforce.salesforce_opportunity_bcv slfc_opp
+        on daily_opps.crm_opportunity_id = slfc_opp.id
+    left join foundational.customer.dim_crm_users_daily_snapshot_bcv users_daily
+        on users_daily.crm_user_id = slfc_opp.owner_id
+        and users_daily.run_date = current_date
+    left join cleansed.salesforce.salesforce_account_bcv slfc_acc
+        on slfc_acc.id = slfc_opp.account_id
+)
+
+select *
+from opportunity_owner
+limit 10
+

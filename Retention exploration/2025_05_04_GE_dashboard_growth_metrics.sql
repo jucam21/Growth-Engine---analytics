@@ -356,8 +356,8 @@ unique_obs as (
         predicted_probability,
         sku_mix,
         addon_mix,
-        max_support_seats,
-        max_suite_seats,
+        sku_type,
+        seats_capacity,
         payment_method_name,
         zuora_coupon_redeemed,
         zuora_unique_coupon_redeemed,
@@ -419,8 +419,8 @@ unique_obs as (
         predicted_probability,
         sku_mix,
         addon_mix,
-        max_support_seats,
-        max_suite_seats,
+        sku_type,
+        seats_capacity,
         payment_method_name,
         zuora_coupon_redeemed,
         zuora_unique_coupon_redeemed,
@@ -482,8 +482,8 @@ unique_obs as (
         predicted_probability,
         sku_mix,
         addon_mix,
-        max_support_seats,
-        max_suite_seats,
+        sku_type,
+        seats_capacity,
         payment_method_name,
         zuora_coupon_redeemed,
         zuora_unique_coupon_redeemed,
@@ -493,10 +493,15 @@ unique_obs as (
     from not_redeemed
 ),
 
+max_date_finance as (
+    select
+        max(service_date) as last_date_finance
+    from foundational.finance.fact_recurring_revenue_bcv_enriched
+),
+
 --- BCV ARR for renewal rate, churn rate, and expansion rate
 import_finance_recurring_revenue_instance_arr as (
     select
-        finance.service_date as last_date_finance,
         snapshot_bcv.instance_account_id as zendesk_account_id,
         sum(finance.net_arr_usd) as net_arr_usd
     from foundational.finance.fact_recurring_revenue_bcv_enriched as finance
@@ -510,11 +515,110 @@ import_finance_recurring_revenue_instance_arr as (
 unique_obs_arr_bcv as (
     select
         a.*,
-        b.last_date_finance,
+        c.last_date_finance,
         b.net_arr_usd as instance_net_arr_usd_bcv
     from unique_obs as a
         left join import_finance_recurring_revenue_instance_arr as b
             on a.account_id = b.zendesk_account_id
+        cross join max_date_finance as c
+),
+
+--- Daily ARR for retention curves
+
+daily_arr as (
+    select
+        finance.service_date,
+        snapshot.instance_account_id as zendesk_account_id,
+        sum(finance.net_arr_usd) as net_arr_usd
+    from foundational.finance.fact_recurring_revenue_daily_snapshot_enriched as finance
+    left join foundational.customer.entity_mapping_daily_snapshot as snapshot
+        on finance.billing_account_id = snapshot.billing_account_id
+        and finance.service_date = snapshot.source_snapshot_date
+    where finance.service_date >= '2025-03-01'
+    group by all
+),
+
+--- Creating future dates, based on initial renewal date, for joining ARR data
+
+unique_obs_future_dates as (
+    select
+        *,
+        -- Adding X months or years to the renewal date based on the subscription term type
+        case
+            when subscription_term_type = 'monthly' then dateadd(month, 1, subscription_renewal_date)
+            when subscription_term_type = 'annual' then dateadd(year, 1, subscription_renewal_date)
+            else null
+        end as renewal_p1_date,
+        case
+            when subscription_term_type = 'monthly' then dateadd(month, 2, subscription_renewal_date)
+            when subscription_term_type = 'annual' then dateadd(year, 2, subscription_renewal_date)
+            else null
+        end as renewal_p2_date,
+        case
+            when subscription_term_type = 'monthly' then dateadd(month, 3, subscription_renewal_date)
+            when subscription_term_type = 'annual' then dateadd(year, 3, subscription_renewal_date)
+            else null
+        end as renewal_p3_date,
+        case
+            when subscription_term_type = 'monthly' then dateadd(month, 4, subscription_renewal_date)
+            when subscription_term_type = 'annual' then dateadd(year, 4, subscription_renewal_date)
+            else null
+        end as renewal_p4_date,
+        case
+            when subscription_term_type = 'monthly' then dateadd(month, 5, subscription_renewal_date)
+            when subscription_term_type = 'annual' then dateadd(year, 5, subscription_renewal_date)
+            else null
+        end as renewal_p5_date,
+        -- Determining if the renewal date have passed
+        -- Customers available to renew on each future date
+        case when renewal_p1_date <= last_date_finance then 1 else 0 end as renewal_p1_date_passed,
+        case when renewal_p2_date <= last_date_finance then 1 else 0 end as renewal_p2_date_passed,
+        case when renewal_p3_date <= last_date_finance then 1 else 0 end as renewal_p3_date_passed,
+        case when renewal_p4_date <= last_date_finance then 1 else 0 end as renewal_p4_date_passed,
+        case when renewal_p5_date <= last_date_finance then 1 else 0 end as renewal_p5_date_passed
+    from unique_obs_arr_bcv
+),
+
+--- Joining future renewal dates with daily ARR data
+
+unique_retention_curves as (
+    select
+        a.*,
+        -- Creating flags for dashboard
+        -- ARR that was renewed on each future date
+        renewal_1.net_arr_usd as renewed_p1_arr,
+        renewal_2.net_arr_usd as renewed_p2_arr,
+        renewal_3.net_arr_usd as renewed_p3_arr,
+        renewal_4.net_arr_usd as renewed_p4_arr,
+        renewal_5.net_arr_usd as renewed_p5_arr,
+        --- ARR available to renew
+        case when renewal_p1_date_passed = 1 then net_arr_usd_instance else null end as renewal_p1_arr_passed,
+        case when renewal_p2_date_passed = 1 then net_arr_usd_instance else null end as renewal_p2_arr_passed,
+        case when renewal_p3_date_passed = 1 then net_arr_usd_instance else null end as renewal_p3_arr_passed,
+        case when renewal_p4_date_passed = 1 then net_arr_usd_instance else null end as renewal_p4_arr_passed,
+        case when renewal_p5_date_passed = 1 then net_arr_usd_instance else null end as renewal_p5_arr_passed,
+        -- Flag if customer renewed on each future date
+        case when renewed_p1_arr > 0 then 1 else 0 end as renewed_p1_account,
+        case when renewed_p2_arr > 0 then 1 else 0 end as renewed_p2_account,
+        case when renewed_p3_arr > 0 then 1 else 0 end as renewed_p3_account,
+        case when renewed_p4_arr > 0 then 1 else 0 end as renewed_p4_account,
+        case when renewed_p5_arr > 0 then 1 else 0 end as renewed_p5_account
+    from unique_obs_future_dates as a
+        left join daily_arr as renewal_1
+            on a.account_id = renewal_1.zendesk_account_id
+            and a.renewal_p1_date = renewal_1.service_date
+        left join daily_arr as renewal_2
+            on a.account_id = renewal_2.zendesk_account_id
+            and a.renewal_p2_date = renewal_2.service_date
+        left join daily_arr as renewal_3
+            on a.account_id = renewal_3.zendesk_account_id
+            and a.renewal_p3_date = renewal_3.service_date
+        left join daily_arr as renewal_4
+            on a.account_id = renewal_4.zendesk_account_id
+            and a.renewal_p4_date = renewal_4.service_date
+        left join daily_arr as renewal_5
+            on a.account_id = renewal_5.zendesk_account_id
+            and a.renewal_p5_date = renewal_5.service_date
 ),
 
 --- Growth metrics
@@ -545,8 +649,22 @@ growth_metrics as (
         case when arr_change < 0 and net_arr_usd_instance > 0 then 1 else 0 end as contraction,
         case when arr_change < 0 and net_arr_usd_instance > 0 then net_arr_usd_instance else null end as contraction_arr,
 
-    from unique_obs_arr_bcv
+    from unique_retention_curves
 )
+
+select data_type,
+count(*) as count,
+count(distinct account_id) as unique_accounts,
+sum(renewal_passed) renewal_passed,
+sum(subscription_renewed) subscription_renewed,
+sum(no_change) no_change,
+sum(churn) churn,
+sum(expansion) expansion,
+sum(contraction) contraction,
+from growth_metrics
+group by 1
+
+
 
 
 select *
