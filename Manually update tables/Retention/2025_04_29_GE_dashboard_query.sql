@@ -593,7 +593,23 @@ main_skus as (
         product_.*,
         addon_.addon_mix,
         support_.max_support_seats,
-        suite_.max_suite_seats
+        suite_.max_suite_seats,
+        --- Create flags for seat type and number of seats
+        case 
+            when 
+                product_.sku_mix like '%support%' 
+                and product_.sku_mix not like '%suite%' 
+                then 'support'
+            when 
+                product_.sku_mix like '%suite%' 
+                then 'suite'
+            else 'other'
+        end as sku_type,
+        case 
+            when sku_type = 'support' then support_.max_support_seats 
+            when sku_type = 'suite' then suite_.max_suite_seats 
+            else null
+        end as seats_capacity
     from product_skus as product_
         left join addons_skus as addon_
             on product_.account_id = addon_.account_id
@@ -661,8 +677,8 @@ main as (
         -- SKU data
         main_skus_.sku_mix,
         main_skus_.addon_mix,
-        main_skus_.max_support_seats,
-        main_skus_.max_suite_seats,
+        main_skus_.sku_type,
+        main_skus_.seats_capacity,
         -- Payment method
         payment_method_.payment_method_name,
         -- Zuora data

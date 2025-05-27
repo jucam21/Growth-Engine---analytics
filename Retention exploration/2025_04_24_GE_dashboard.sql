@@ -2184,6 +2184,245 @@ from main;
 
 
 
+----- Adjust SKUs query
+
+with import_skus_with_parsed_settings as (
+    select
+        account_id,
+        name,
+        state,
+        boost,
+        parse_json(plan_settings) as parsed_plan_settings,
+        parsed_plan_settings:plan:value::string as plan,
+        parsed_plan_settings:maxAgents:value::string as max_agents,
+        row_number() over (
+            partition by account_id, name, state -- Adding or removing state change results
+            order by updated_at desc
+        ) as rank
+    from propagated_formatted.accountsdb.skus
+    qualify rank = 1
+),
+
+-- Product SKUs have a plan associated
+product_skus as (
+    select
+        account_id,
+        listagg(concat(name, '_', plan), ', ') within GROUP (ORDER BY concat(name, '_', plan)) AS sku_mix
+    from import_skus_with_parsed_settings
+    where 
+        state = 'subscribed'
+        and plan is not null
+    group by account_id
+
+),
+
+-- Addon SKUs do not have a plan associated
+addons_skus as (
+    select
+        account_id,
+        listagg(name, ', ') within GROUP (ORDER BY name) AS addon_mix
+    from import_skus_with_parsed_settings
+    where 
+        state = 'subscribed'
+        and plan is null
+    group by account_id
+),
+
+support_seats as (
+    select
+        account_id,
+        max(max_agents) as max_support_seats
+    from import_skus_with_parsed_settings
+    where
+        state = 'subscribed'
+        and lower(name) like '%support%'
+    group by account_id
+
+),
+
+suite_seats as (
+    select
+        account_id,
+        max(max_agents) as max_suite_seats
+    from import_skus_with_parsed_settings
+    where
+        state = 'subscribed'
+        and lower(name) like '%suite%'
+    group by account_id
+
+),
+
+main_skus as (
+    select
+        product_.*,
+        addon_.addon_mix,
+        support_.max_support_seats,
+        suite_.max_suite_seats
+    from product_skus as product_
+        left join addons_skus as addon_
+            on product_.account_id = addon_.account_id
+        left join support_seats as support_
+            on product_.account_id = support_.account_id
+        left join suite_seats as suite_
+            on product_.account_id = suite_.account_id
+),
+
+joined as (select distinct
+    a.account_id,
+    a.sku_mix,
+    a.addon_mix,
+    a.max_support_seats,
+    a.max_suite_seats,
+    b.sku_mix sku_mix_b,
+    b.addon_mix addon_mix_b,
+    b.max_support_seats max_support_seats_b,
+    b.max_suite_seats max_suite_seats_b,
+    case 
+        when 
+            b.sku_mix like '%support%' 
+            and b.sku_mix not like '%suite%' 
+            then 'support'
+        when 
+            b.sku_mix like '%suite%' 
+            then 'suite'
+        else 'other'
+    end as sku_type,
+    case 
+        when sku_type = 'support' then max_support_seats 
+        when sku_type = 'suite' then max_suite_seats 
+        else null
+    end as seats_capacity
+from sandbox.juan_salgado.ge_dashboard_test a
+left join main_skus b
+    on a.account_id = b.account_id)
+
+select sku_type, count(*)
+from joined
+group by 1
+
+
+
+
+select distinct
+a.account_id,
+a.sku_mix,
+a.addon_mix,
+a.max_support_seats,
+a.max_suite_seats
+from sandbox.juan_salgado.ge_dashboard_test a
+where a.max_support_seats = 1
+    
+
+
+
+select distinct
+a.account_id,
+a.sku_mix,
+a.addon_mix,
+a.max_support_seats,
+a.max_suite_seats
+from sandbox.juan_salgado.ge_dashboard_test a
+where a.max_support_seats is not null
+limit 10
+
+
+
+select a.*,
+b.seats_capacity,
+c.seats_occupied
+from functional.product_analytics.product_mix_daily_snapshot a
+left join functional.product_analytics.seats_capacity_daily_snapshot b
+on a.instance_account_id = b.instance_account_id
+and a.source_snapshot_date = b.source_snapshot_date
+left join functional.product_analytics.seats_occupied_daily_snapshot c
+on a.instance_account_id = c.instance_account_id
+and a.source_snapshot_date = c.source_snapshot_date
+where a.instance_account_id = 11106182
+and a.source_snapshot_date >= '2025-04-01'
+order by a.source_snapshot_date;
+
+
+with joined as(select distinct
+a.account_id,
+a.sku_mix,
+a.addon_mix,
+a.max_support_seats,
+a.max_suite_seats,
+b.core_base_plan,
+case when lower(b.core_base_plan) like '%support%' then 1 else null end as support_seats_flag,
+case when lower(b.core_base_plan) not like '%support%' then 1 else null end as suite_seats_flag,
+case when lower(b.core_base_plan) like '%support%' then c.seats_capacity else null end as support_seats_capacity,
+case when lower(b.core_base_plan) not like '%support%' then c.seats_capacity else null end as suite_seats_capacity,
+from sandbox.juan_salgado.ge_dashboard_test a
+left join functional.product_analytics.product_mix_daily_snapshot b
+    on a.account_id = b.instance_account_id
+    and a.first_loaded_date = b.source_snapshot_date
+left join functional.product_analytics.seats_capacity_daily_snapshot c
+    on a.account_id = c.instance_account_id
+    and a.first_loaded_date = c.source_snapshot_date
+where lower(a.account_category) != 'internal instance')
+
+
+select support_seats_capacity, count(*),
+from joined
+where support_seats_flag = 1
+group by 1
+order by 1
+
+
+
+select count(*),
+count(distinct account_id), 
+count(distinct case when core_base_plan is null then account_id else null end) as null_count_product_line,
+sum(support_seats_flag) as support_seats_flag_count,
+sum(suite_seats_flag) as suite_seats_flag_count
+from joined
+
+
+
+where lower(core_base_plan) like '%support%';
+
+
+
+
+
+
+select support_seats_capacity, count(*),
+from joined
+where lower(core_base_plan) like '%support%'
+group by 1
+order by 1
+
+
+select count(*),
+count(distinct account_id), 
+count(distinct case when core_base_plan is null then account_id else null end) as null_count_product_line
+from joined
+where lower(core_base_plan) like '%support%';
+
+
+
+
+select 
+a.account_id,
+a.sku_mix,
+a.addon_mix,
+a.max_support_seats,
+a.max_suite_seats
+from sandbox.juan_salgado.ge_dashboard_test a
+left join functional.product_analytics.product_mix_daily_snapshot b
+
+where a.max_suite_seats is null 
+    
+
+
+
+
+
+
+
+
+
 ----- Validate data in table
 
 
