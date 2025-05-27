@@ -521,25 +521,66 @@ order by 1
 limit 10
 
 
+
+
 -----------------------------------------------
 -- 14. Prior created account with same email
 
-with import_accounts_emails as (
+--- Trial email data can be in two places: 
+-- either in propagated_cleansed.product_accounts.base_trial_extras or 
+-- propagated_foundational.product_agent_info.dim_agent_emails_daily_snapshot
+-- The majority of trials will have email in the first table, but if for some reason it is not there, we can use the second table.
+with trial_emails as (
+    select
+        instance_account_id, 
+        lower(max(trial_extra_value)) as cust_owner_email
+    from propagated_cleansed.product_accounts.base_trial_extras
+    where lower(trial_extra_key) = 'email'
+    group by instance_account_id
+),
+
+verified_date_email0 as (
+select
+    instance_account_id, 
+    source_snapshot_timestamp as first_verified_timestamp, 
+    min(agent_email) as cust_owner_email
+    from propagated_foundational.product_agent_info.dim_agent_emails_daily_snapshot
+    where 
+        agent_is_verified = true
+        and agent_is_owner = true
+        and date(created_timestamp) >= '2025-01-01'
+    group by instance_account_id, first_verified_timestamp  
+    qualify rank() over (partition by instance_account_id order by first_verified_timestamp) = 1
+), 
+
+verified_date_email as (
+    select
+        instance_account_id, 
+        min(first_verified_timestamp) as first_verified_timestamp, 
+        min(cust_owner_email) as cust_owner_email
+    from verified_date_email0
+    group by instance_account_id
+),
+
+-- Joining both email sources 
+import_accounts_emails as (
     select
         d.instance_account_id, 
         d.instance_account_created_timestamp, 
         date(d.instance_account_created_timestamp) as instance_account_created_date, 
         coalesce(tee.cust_owner_email,vd.cust_owner_email) as cust_owner_email
     from foundational.customer.dim_instance_accounts_daily_snapshot_bcv d
-    left join trial_extras_email tee
+    left join trial_emails tee
         on d.instance_account_id = tee.instance_account_id
     left join verified_date_email vd
         on d.instance_account_id = vd.instance_account_id
-    where date(d.instance_account_created_timestamp) >= '2022-01-01'
+    where 
+        date(d.instance_account_created_timestamp) >= '2022-01-01'
         and d.instance_account_derived_type not in ('Internal Instance', 'Sandbox')
         and instance_account_is_sandbox = false
 ),
 
+-- Cleaning up emails
 int_accounts_emails as (
     select 
         instance_account_id, 
@@ -550,35 +591,36 @@ int_accounts_emails as (
             '@', 
             split_part(cust_owner_email, '@', 2)
         ) as email_stripped
-    from instance_accounts
+    from import_accounts_emails
 ),
 
 last_created_account as (
     select 
         *, 
+        -- Days since the last account was created for the same email
         instance_account_created_date - lag(instance_account_created_date) over (
             partition by email_stripped order by instance_account_created_timestamp
         ) as days_since_last_account_created -- calculating the days since the last trial was created
     from int_accounts_emails
+), 
+
+days_since_last_created as (
+    select 
+        distinct
+        instance_account_id, 
+        instance_account_created_date, 
+        instance_account_created_timestamp, 
+        email_stripped, 
+        -- Field to determine threshold for the last created account
+        days_since_last_account_created,
+        iff(days_since_last_account_created <= 365 , 1, 0) as created_last_year_flag
+    from last_created_account
+    order by email_stripped, instance_account_created_timestamp
 )
 
-, dup_accts as (
-select 
-distinct
-a.instance_account_id
-, a.instance_account_created_date
-, a.instance_account_created_timestamp
-, a.email_stripped
-, case 
-    when a.days_since_last_account_created  <= 30 
-    then true
-    else false
-end as is_duplicate_flag
-from emails a
-order by a.email_stripped, a.instance_account_created_timestamp
-)
-
-
+select *
+from days_since_last_created
+limit 10
 
 
 
