@@ -492,11 +492,8 @@ limit 10
 with opportunity_owner as (
     select distinct
         slfc_opp.account_id as crm_account_id,
-        slfc_opp.id as crm_opportunity_id,
         slfc_acc.name as crm_account_name,
-        daily_opps.opportunity_created_date,
-        --  SALES_REP_NAME,
-        users_daily.user_name as rep_name
+        true as has_rep_assigned
     FROM foundational.customer.dim_crm_opportunities_daily_snapshot_bcv daily_opps
     left join cleansed.salesforce.salesforce_opportunity_bcv slfc_opp
         on daily_opps.crm_opportunity_id = slfc_opp.id
@@ -505,9 +502,21 @@ with opportunity_owner as (
         and users_daily.run_date = current_date
     left join cleansed.salesforce.salesforce_account_bcv slfc_acc
         on slfc_acc.id = slfc_opp.account_id
+    where 
+        -- CRM has a rep assigned
+        users_daily.user_name is not null
+        -- CRM has at least one opportunity open
+        and daily_opps.opportunity_close_date >= daily_opps.run_date
 )
 
 select *
 from opportunity_owner
+order by 1
 limit 10
+
+
+
+
+
+
 
