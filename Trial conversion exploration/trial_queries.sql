@@ -506,7 +506,13 @@ with opportunity_owner as (
         -- CRM has a rep assigned
         users_daily.user_name is not null
         -- CRM has at least one opportunity open
-        and daily_opps.opportunity_close_date >= daily_opps.run_date
+        and daily_opps.opportunity_stage_name in (
+            '03 - Establish Value',
+            '04 - Demonstrate Value',
+            '05 - Secure Commitment',
+            '06 - Contracting',
+            '07 - Signed'
+        )
 )
 
 select *
@@ -514,6 +520,63 @@ from opportunity_owner
 order by 1
 limit 10
 
+
+-----------------------------------------------
+-- 14. Prior created account with same email
+
+with import_accounts_emails as (
+    select
+        d.instance_account_id, 
+        d.instance_account_created_timestamp, 
+        date(d.instance_account_created_timestamp) as instance_account_created_date, 
+        coalesce(tee.cust_owner_email,vd.cust_owner_email) as cust_owner_email
+    from foundational.customer.dim_instance_accounts_daily_snapshot_bcv d
+    left join trial_extras_email tee
+        on d.instance_account_id = tee.instance_account_id
+    left join verified_date_email vd
+        on d.instance_account_id = vd.instance_account_id
+    where date(d.instance_account_created_timestamp) >= '2022-01-01'
+        and d.instance_account_derived_type not in ('Internal Instance', 'Sandbox')
+        and instance_account_is_sandbox = false
+),
+
+int_accounts_emails as (
+    select 
+        instance_account_id, 
+        instance_account_created_date, 
+        instance_account_created_timestamp, 
+        concat(
+            split_part(split_part(cust_owner_email, '@', 1), '+', 1), 
+            '@', 
+            split_part(cust_owner_email, '@', 2)
+        ) as email_stripped
+    from instance_accounts
+),
+
+last_created_account as (
+    select 
+        *, 
+        instance_account_created_date - lag(instance_account_created_date) over (
+            partition by email_stripped order by instance_account_created_timestamp
+        ) as days_since_last_account_created -- calculating the days since the last trial was created
+    from int_accounts_emails
+)
+
+, dup_accts as (
+select 
+distinct
+a.instance_account_id
+, a.instance_account_created_date
+, a.instance_account_created_timestamp
+, a.email_stripped
+, case 
+    when a.days_since_last_account_created  <= 30 
+    then true
+    else false
+end as is_duplicate_flag
+from emails a
+order by a.email_stripped, a.instance_account_created_timestamp
+)
 
 
 
