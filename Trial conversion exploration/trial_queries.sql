@@ -624,8 +624,7 @@ limit 10
 
 
 -----------------------------------------------
--- 15. Tryal type
-
+-- 15. Trial type
 
 with ranked_skus as (
     select
