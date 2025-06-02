@@ -373,3 +373,14 @@ select *
 from sandbox.juan_salgado.ge_growth_metrics_test
 where last_date_finance is null
 
+
+---- Validate if table is being updated
+
+-- Max date from segment tables
+select *
+from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_load_1_scd2
+order by original_timestamp desc
+limit 10
+
+
+
