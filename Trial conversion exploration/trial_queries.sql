@@ -623,5 +623,59 @@ from days_since_last_created
 limit 10
 
 
+-----------------------------------------------
+-- 15. Tryal type
 
+
+with ranked_skus as (
+    select
+        instance_account_id,
+        created_timestamp,
+        case
+            when sku_name in ('sell_suite', 'sell') then 'Sell'
+            when sku_name = 'support' then 'Support'
+            when sku_name in ('zendesk_suite', 'suite') then 'Suite'
+        end as sku_name,
+        lag(created_timestamp) over (partition by instance_account_id order by created_timestamp) as prev_timestamp
+    from
+        propagated_cleansed.product_accounts.base_skus_scd2
+    where
+        sku_name in ('sell_suite', 'sell', 'support', 'zendesk_suite', 'suite')
+),
+
+ranked_trials as (
+    select
+        instance_account_id,
+        created_timestamp,
+        sku_name
+    from
+        ranked_skus
+    -- assume it's the same trial if created < 5 sec apart#}
+    qualify
+        dense_rank()
+            over (
+                partition by
+                    instance_account_id
+                order by
+                    case
+                        when prev_timestamp is null then created_timestamp
+                        when datediff(second, prev_timestamp, created_timestamp) <= 5 then prev_timestamp
+                        else created_timestamp
+                    end
+            ) = 1
+),
+
+trial_types as (
+    select
+        instance_account_id,
+        listagg(distinct sku_name, ' + ') within group (order by sku_name) as trial_type
+    from
+        ranked_trials
+    group by
+        instance_account_id
+)
+
+select *
+from trial_types
+limit 10
 
