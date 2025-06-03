@@ -1,0 +1,209 @@
+
+------ Checking why this calculation returns null for some accounts
+------ It seems the filters are removing customers that we should not remove
+
+with trial_expiry as (
+    select
+        instance_account_id,
+        instance_account_is_trial,
+        instance_account_trial_expires_on,
+        current_date,
+        instance_account_trial_expires_on,
+        instance_account_created_timestamp,
+        -- Days to trial expiry
+        datediff('day', current_date, instance_account_trial_expires_on) as days_to_expiry,
+        -- Trial account age
+        datediff('day', date(instance_account_created_timestamp), current_date) as trial_age
+    from
+        foundational.customer.dim_instance_accounts_daily_snapshot_bcv
+    where instance_account_id in (
+        9616711,
+        19628646,
+        15951963,
+        21504822)
+    --instance_account_is_trial = True
+    --and days_to_expiry > 0
+)
+
+select *
+from
+    trial_expiry
+limit 10
+
+
+select *
+from FEATURE_PUFFINS614.DEV.DIM_GROWTH_ENGINE_CUSTOMER_ACCOUNTS
+where trial_age is null
+and is_trial = True and account_category != 'Internal Instance'
+limit 10
+
+select 
+count(*) total_web_form_tickets,
+count(case when trial_age is null then 1 end) as web_form_tickets_no_trial_age,
+from FEATURE_PUFFINS614.DEV.DIM_GROWTH_ENGINE_CUSTOMER_ACCOUNTS
+where is_trial = True and account_category != 'Internal Instance'
+
+
+--- Checking NULL sku trial name
+
+select 
+count(*) tot_obs,
+count(case when trial_age is null then 1 end) as trial_age,
+count(case when trial_sku_names is null then 1 end) as trial_sku_names,
+from FEATURE_PUFFINS614.DEV.DIM_GROWTH_ENGINE_CUSTOMER_ACCOUNTS
+where is_trial = True and account_category != 'Internal Instance'
+
+
+
+select *
+from FEATURE_PUFFINS614.DEV.DIM_GROWTH_ENGINE_CUSTOMER_ACCOUNTS
+where trial_sku_names is null
+and is_trial = True and account_category != 'Internal Instance'
+limit 10
+
+
+
+
+
+
+
+
+-- Selects skus that are relevant for trial accounts
+with ranked_skus as (
+    select
+        instance_account_id,
+        created_timestamp,
+        sku_name,
+        sku_state,
+        lag(created_timestamp) over (partition by instance_account_id order by created_timestamp) as prev_timestamp
+    from
+        propagated_cleansed.product_accounts.base_skus_scd2
+    where
+        sku_name in ('sell_suite', 'sell', 'support', 'zendesk_suite', 'suite')
+        and sku_state = 'trial'
+),
+
+-- Deduplicate trial skus
+ranked_trials as (
+    select
+        instance_account_id,
+        created_timestamp,
+        sku_name,
+        sku_state
+    from
+        ranked_skus
+    -- assume it's the same trial if created < 5 sec apart#}
+    qualify
+        dense_rank()
+            over (
+                partition by
+                    instance_account_id
+                order by
+                    case
+                        when prev_timestamp is null then created_timestamp
+                        when datediff(second, prev_timestamp, created_timestamp) <= 5 then prev_timestamp
+                        else created_timestamp
+                    end
+            )
+        = 1
+),
+
+-- Aggregate trial types by instance_account_id
+import_trial_types as (
+    select
+        instance_account_id,
+        listagg(distinct sku_name, ',') within group (order by sku_name) as trial_sku_names,
+        listagg(distinct sku_state, ',') within group (order by sku_state) as trial_sku_states
+    from
+        ranked_trials
+    group by
+        instance_account_id
+)
+
+select *
+from import_trial_types
+where instance_account_id in (
+10719489
+,17425307
+,1499683
+,2291396
+,9160052)
+
+
+(
+12212715
+,11659995
+,10062156
+,14113363)
+
+
+10719489
+17425307
+1499683
+2291396
+9160052
+
+
+
+--- Opportunity owner & Startup Null
+
+--- Startup
+
+----------------------------------------------
+-- 3. Startup flag
+-- Startups are identified on the crm account in Salesforce. Assume all instances under the account are startup accounts
+with startup as (
+    select
+        emd.crm_account_id,
+        emd.instance_account_id,
+        max(1) as startup_flag
+    from
+        cleansed.salesforce.salesforce_account_bcv as sab
+    inner join
+        foundational.customer.entity_mapping_daily_snapshot_bcv as emd
+        on
+            sab.id = emd.crm_account_id
+    where
+        sab.startup_program_c
+        and sab.valid_to_timestamp = date('9999-12-31')
+        and emd.instance_account_id is not null
+    group by
+        emd.crm_account_id,
+        emd.instance_account_id
+)
+
+select count(*)
+from startup
+limit 10
+
+
+
+with import_salesforce_data as (
+    select
+        id as sf_account_id,
+        industry,
+        startup_program_c as is_startup
+    from cleansed.salesforce.salesforce_account_bcv
+    where valid_to_timestamp = date('9999-12-31')
+    and is_startup = True
+)
+
+select count(*)
+from import_salesforce_data
+limit 10
+
+
+select *
+from FEATURE_PUFFINS614.DEV.DIM_GROWTH_ENGINE_CUSTOMER_ACCOUNTS
+where crm_account_id in ('0016R00003BDJTyQAP','0011E00001oqHuIQAU','0011E00001oG2VOQA0','0011E00001pJjsJQAS'
+)
+
+
+select *
+from foundational.customer.dim_instance_accounts_daily_snapshot_bcv a
+left join foundational.customer.entity_mapping_daily_snapshot_bcv as emd
+        on
+            a.instance_account_id = emd.instance_account_id
+where emd.crm_account_id in ('0016R00003BDJTyQAP','0011E00001oqHuIQAU','0011E00001oG2VOQA0','0011E00001pJjsJQAS')
+
+
