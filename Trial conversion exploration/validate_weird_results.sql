@@ -207,3 +207,117 @@ left join foundational.customer.entity_mapping_daily_snapshot_bcv as emd
 where emd.crm_account_id in ('0016R00003BDJTyQAP','0011E00001oqHuIQAU','0011E00001oG2VOQA0','0011E00001pJjsJQAS')
 
 
+
+select account_category, count(*)
+from FEATURE_PUFFINS614.DEV.DIM_GROWTH_ENGINE_CUSTOMER_ACCOUNTS
+group by account_category
+
+
+
+----- Checking trial accounts
+select 
+    a.source_snapshot_date,
+    a.instance_account_derived_type,
+    count(*) tot_obs,
+    count(distinct a.instance_account_id) as distinct_instance_accounts,
+from foundational.customer.dim_instance_accounts_daily_snapshot_bcv a
+inner join
+        foundational.customer.entity_mapping_daily_snapshot_bcv as emd
+        on
+            a.instance_account_id = emd.instance_account_id
+where 
+    instance_account_is_trial = True
+    and instance_account_is_deleted = false
+    and (instance_account_state <> 'deleted' or instance_account_state is null)
+group by all
+
+
+
+
+----- Checking trial accounts
+select 
+    a.source_snapshot_date,
+    count(*) tot_obs,
+    count(distinct a.instance_account_id) as distinct_instance_accounts,
+from foundational.customer.dim_instance_accounts_daily_snapshot_bcv a
+inner join
+        foundational.customer.entity_mapping_daily_snapshot_bcv as emd
+        on
+            a.instance_account_id = emd.instance_account_id
+where 
+    instance_account_trial_expires_on > current_date
+    and instance_account_is_deleted = false
+    and (instance_account_state <> 'deleted' or instance_account_state is null)
+group by all
+
+
+
+
+select 
+    a.source_snapshot_date,
+    count(*) tot_obs,
+    count(distinct a.instance_account_id) as distinct_instance_accounts,
+from foundational.customer.dim_instance_accounts_daily_snapshot_bcv a
+--inner join
+--        foundational.customer.entity_mapping_daily_snapshot_bcv as emd
+--        on
+--            a.instance_account_id = emd.instance_account_id
+where 
+    instance_account_is_deleted = false
+    and (instance_account_state <> 'deleted' or instance_account_state is null)
+    and instance_account_is_active = True
+    and instance_account_is_serviceable = True
+    --instance_account_trial_expires_on > current_date
+group by all
+
+
+
+
+--- Count all active trial accounts
+select count(*)
+from foundational.customer.dim_instance_accounts_daily_snapshot_bcv customer
+
+where customer.instance_account_is_abusive = False 
+  and customer.instance_account_derived_type='Active Trial'
+
+
+--- Count all active trial accounts with inner join
+select count(*)
+from foundational.customer.dim_instance_accounts_daily_snapshot_bcv customer
+inner join
+        foundational.customer.entity_mapping_daily_snapshot_bcv as emd
+        on
+            customer.instance_account_id = emd.instance_account_id
+where customer.instance_account_is_abusive = False 
+  and customer.instance_account_derived_type='Active Trial'
+
+
+
+--- Count all active trial accounts and account age less than 30 days
+select count(*)
+from foundational.customer.dim_instance_accounts_daily_snapshot_bcv customer
+
+where customer.instance_account_is_abusive = False 
+  and customer.instance_account_derived_type='Active Trial'
+  and datediff('day', date(customer.instance_account_created_timestamp), current_date) < 30
+
+
+--- Count all active trial accounts and days to trial expiry less than 15 days
+select count(*)
+from foundational.customer.dim_instance_accounts_daily_snapshot_bcv customer
+
+where customer.instance_account_is_abusive = False 
+  and customer.instance_account_derived_type='Active Trial'
+  and datediff('day', current_date, customer.instance_account_trial_expires_on) < 15
+
+
+--- Count all active trial accounts and days to trial expiry less than 15 days and account age less than 30 days
+select count(*)
+from foundational.customer.dim_instance_accounts_daily_snapshot_bcv customer
+
+where customer.instance_account_is_abusive = False 
+  and customer.instance_account_derived_type='Active Trial'
+  and datediff('day', current_date, customer.instance_account_trial_expires_on) < 15
+  and datediff('day', date(customer.instance_account_created_timestamp), current_date) < 30
+
+
