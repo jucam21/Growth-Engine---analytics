@@ -321,3 +321,135 @@ where customer.instance_account_is_abusive = False
   and datediff('day', date(customer.instance_account_created_timestamp), current_date) < 30
 
 
+
+
+
+
+
+
+-----------------------------------------------
+-- Trial accounts from trial SKUs
+
+
+
+select sku_state, count(*) as total_accounts
+from propagated_cleansed.product_accounts.base_skus_scd2
+group by sku_state
+
+
+
+
+
+
+with latest_records as (
+    select
+        instance_account_id,
+        date(created_timestamp) as created_date,
+        sku_name, 
+        sku_state,
+        row_number() over (
+            partition by instance_account_id, sku_name, sku_state
+            order by date(created_timestamp) desc
+        ) as rank
+    from
+        propagated_cleansed.product_accounts.base_skus --_scd2
+    where sku_state not in ('expired', 'cancelled')
+    qualify rank = 1
+),
+
+prop_sku_trial as (
+    select
+        instance_account_id,
+        min(created_date) as first_sku_created_date,
+        count(*) total_skus,
+        sum(case when sku_state = 'trial' then 1 else 0 end) as number_trial_skus,
+        number_trial_skus / count(*) as trial_sku_ratio,
+    from latest_records
+    group by instance_account_id
+)
+
+
+select 
+    count(*) as total_accounts,
+    sum(case when trial_sku_ratio = 1 then 1 else 0 end) as total_trial_accounts,
+from prop_sku_trial
+--where date_trunc('quarter', first_sku_created_date) = '2025-01-01'
+
+
+
+
+
+select *
+from prop_sku_trial
+where trial_sku_ratio = 1
+and total_skus = 3
+limit 10
+
+
+select *
+from propagated_cleansed.product_accounts.base_skus_scd2
+where instance_account_id = 10471019
+
+
+
+
+select *
+from propagated_cleansed.product_accounts.base_skus
+where instance_account_id = 10471019
+
+
+
+
+
+
+select sku_state,
+       count(*) as total_accounts,
+from latest_records
+where sku_state is null
+group by sku_state
+
+select min(created_date) as first_trial_date,
+       max(created_date) as last_trial_date,
+       count(*) as total_trials,
+from latest_records
+
+ranked_trials as (
+    select
+        instance_account_id,
+        created_timestamp,
+        sku_name
+    from
+        ranked_skus
+    -- assume it's the same trial if created < 5 sec apart#}
+    qualify
+        dense_rank()
+            over (
+                partition by
+                    instance_account_id
+                order by
+                    case
+                        when prev_timestamp is null then created_timestamp
+                        when datediff(second, prev_timestamp, created_timestamp) <= 5 then prev_timestamp
+                        else created_timestamp
+                    end
+            ) = 1
+),
+
+trial_types as (
+    select
+        instance_account_id,
+        listagg(distinct sku_name, ' + ') within group (order by sku_name) as trial_type
+    from
+        ranked_trials
+    group by
+        instance_account_id
+)
+
+select *
+from trial_types
+limit 10
+
+
+
+
+
