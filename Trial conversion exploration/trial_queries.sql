@@ -125,6 +125,10 @@ int_account_skus as (
 -----------------------------------------------
 -- 5. Tickets
 -- Counting # of tickets per channel
+-- Used this link: https://developer.zendesk.com/documentation/ticketing/reference-guides/via-types/
+-- Grouped by Ticket created by
+-- In case null, grouped as "other"
+
 with all_tickets as (
     select
         tickets.instance_account_id,
@@ -138,13 +142,50 @@ with all_tickets as (
         case when total_solved_tickets > 0 then 1 else 0 end as ticket_solved_flag,
         case when total_solved_sample_tickets > 0 then 1 else 0 end as ticket_sample_solved_flag,
         -- Total tickets created by channel
-        sum(case when ticket_via_id in (33, 34, 35, 44, 45, 46) then count_created_tickets end) as talk_tickets,
-        sum(case when ticket_via_id in (29) then count_created_tickets end) as chat_tickets,
-        sum(case when ticket_via_id in (83, 41, 38, 78, 84, 82, 86, 85, 72, 76, 77, 75, 57, 79, 80, 88, 30, 26, 23, 81, 73, 74, 91) then count_created_tickets end) as msg_tickets,
-        sum(case when ticket_via_id in (75) then count_created_tickets end) as native_msg_tickets,
-        sum(case when ticket_via_id in (38, 41, 78) then count_created_tickets end) as fb_msg_tickets,
-        sum(case when ticket_via_id in (0) then count_created_tickets end) as web_form_tickets,
-        sum(case when ticket_via_id in (1, 4) then count_created_tickets end) as mail_tickets
+        sum(case when ticket_via_id in (0, 17, 20, 27, 42, 48) then count_created_tickets end) as web_tickets,
+        sum(case when ticket_via_id = 4 then count_created_tickets end) as email_tickets,
+        sum(case when ticket_via_id in (5, 31, 36, 39, 40, 44, 45, 46) then count_created_tickets end) as api_tickets,
+        sum(case when ticket_via_id in (8, 62) then count_created_tickets end) as rule_tickets,
+        sum(case when ticket_via_id in (23, 26, 30, 88) then count_created_tickets end) as twitter_tickets,
+        sum(case when ticket_via_id = 24 then count_created_tickets end) as forum_tickets,
+        sum(case when ticket_via_id = 29 then count_created_tickets end) as chat_tickets,
+        sum(case when ticket_via_id in (33, 34, 35) then count_created_tickets end) as voice_tickets,
+        sum(case when ticket_via_id in (38, 41) then count_created_tickets end) as facebook_tickets,
+        sum(case when ticket_via_id = 49 then count_created_tickets end) as mobile_sdk_tickets,
+
+        sum(case when ticket_via_id = 50 then count_created_tickets end) as help_center_tickets,
+        sum(case when ticket_via_id in (51, 52) then count_created_tickets end) as sample_ticket_tickets,
+        sum(case when ticket_via_id = 55 then count_created_tickets end) as any_channel_tickets,
+        sum(case when ticket_via_id = 56 then count_created_tickets end) as mobile_tickets,
+        sum(case when ticket_via_id = 57 then count_created_tickets end) as sms_tickets,
+        sum(case when ticket_via_id = 72 then count_created_tickets end) as line_tickets,
+        sum(case when ticket_via_id = 73 then count_created_tickets end) as wechat_tickets,
+        sum(case when ticket_via_id = 74 then count_created_tickets end) as whatsapp_tickets,
+        sum(case when ticket_via_id = 75 then count_created_tickets end) as native_messaging_tickets,
+        sum(case when ticket_via_id = 76 then count_created_tickets end) as mailgun_tickets,
+
+        sum(case when ticket_via_id = 77 then count_created_tickets end) as messagebird_sms_tickets,
+        sum(case when ticket_via_id = 79 then count_created_tickets end) as telegram_tickets,
+        sum(case when ticket_via_id = 80 then count_created_tickets end) as twilio_sms_tickets,
+        sum(case when ticket_via_id = 81 then count_created_tickets end) as viber_tickets,
+        sum(case when ticket_via_id = 82 then count_created_tickets end) as google_rcs_tickets,
+        sum(case when ticket_via_id = 83 then count_created_tickets end) as apple_business_chat_tickets,
+        sum(case when ticket_via_id = 84 then count_created_tickets end) as google_business_messages_tickets,
+        sum(case when ticket_via_id = 85 then count_created_tickets end) as kakaotalk_tickets,
+        sum(case when ticket_via_id = 86 then count_created_tickets end) as instagram_dm_tickets,
+        sum(case when ticket_via_id = 87 then count_created_tickets end) as sunshine_conversations_api_tickets,
+        sum(case when ticket_via_id = 90 then count_created_tickets end) as chat_transcript_tickets,
+        sum(case when ticket_via_id = 91 then count_created_tickets end) as business_messaging_slack_connect_tickets,
+
+        sum(case when ticket_via_id = 63 then count_created_tickets end) as answer_bot_for_agents_tickets,
+        sum(case when ticket_via_id = 64 then count_created_tickets end) as answer_bot_for_slack_tickets,
+        sum(case when ticket_via_id = 65 then count_created_tickets end) as answer_bot_for_sdk_tickets,
+        sum(case when ticket_via_id = 66 then count_created_tickets end) as answer_bot_api_tickets,
+        sum(case when ticket_via_id = 67 then count_created_tickets end) as answer_bot_for_web_widget_tickets,
+        sum(case when ticket_via_id = 69 then count_created_tickets end) as side_conversation_tickets,
+        sum(case when ticket_via_id = 78 then count_created_tickets end) as sunshine_conversations_facebook_messenger_tickets,
+        sum(case when ticket_via_id = 88 then count_created_tickets end) as sunshine_conversations_twitter_dm_tickets,
+        sum(case when ticket_via_id in (9, 10, 11, 12, 13, 14, 15, 16, 19, 21, 22, 25, 28, 32, 37, 43, 47, 53, 54, 58, 59, 60, 61, 68, 70, 71, 89) then count_created_tickets end) as other_tickets
     from
         propagated_functional.product_analytics.fact_aggregated_tickets_data_daily_snapshot tickets
     inner join foundational.customer.dim_instance_accounts_daily_snapshot_bcv instance_accounts_bcv
