@@ -384,3 +384,6 @@ limit 10
 
 
 
+
+select distinct account_category
+from functional.growth_engine.dim_growth_engine_customer_accounts

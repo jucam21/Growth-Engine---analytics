@@ -145,16 +145,23 @@ trial_funnel as (
         -- Create grouping variables
         case 
             when trial_funnel.arr_at_win = 0 or trial_funnel.arr_at_win is null then '1. NA'
-            when trial_funnel.arr_at_win <= 5000 then '2. 0-5k'
+            when trial_funnel.arr_at_win <= 5000 then '2. 1-5k'
             when trial_funnel.arr_at_win <= 10000 then '3. 5k-10k'
             when trial_funnel.arr_at_win <= 25000 then '4. 10k-25k'
             when trial_funnel.arr_at_win <= 50000 then '5. 25k-50k'
             when trial_funnel.arr_at_win <= 100000 then '6. 50k-100k'
             else '7. 100k+' 
         end as arr_at_win_band,
+        case 
+            when trial_funnel.cart_visit = 0 or trial_funnel.cart_visit is null then '1. NA'
+            when trial_funnel.cart_visit <= 2 then '2. 1-2'
+            when trial_funnel.cart_visit <= 5 then '3. 2-5'
+            when trial_funnel.cart_visit <= 10 then '4. 5-10'
+            else '7. 10+' 
+        end as cart_visits_band,
         case
             when trial_funnel.seats_at_win = 0 or trial_funnel.seats_at_win is null then '1. NA'
-            when trial_funnel.seats_at_win <= 5 then '2. 0-5'
+            when trial_funnel.seats_at_win <= 5 then '2. 1-5'
             when trial_funnel.seats_at_win <= 10 then '3. 6-10'
             when trial_funnel.seats_at_win <= 25 then '4. 11-25'
             when trial_funnel.seats_at_win <= 50 then '5. 26-50'
@@ -163,7 +170,7 @@ trial_funnel as (
         end as seats_at_win_range_band,
         case
             when ticket_count_account.total_tickets = 0 or ticket_count_account.total_tickets is null then '1. NA'
-            when ticket_count_account.total_tickets <= 5 then '2. 0-5'
+            when ticket_count_account.total_tickets <= 5 then '2. 1-5'
             when ticket_count_account.total_tickets <= 10 then '3. 6-10'
             when ticket_count_account.total_tickets <= 25 then '4. 11-25'
             when ticket_count_account.total_tickets <= 50 then '5. 26-50'
@@ -172,7 +179,7 @@ trial_funnel as (
         end as total_tickets_range_band,
         case
             when ticket_count_account.total_sample_tickets = 0 or ticket_count_account.total_sample_tickets is null then '1. NA'
-            when ticket_count_account.total_sample_tickets <= 5 then '2. 0-5'
+            when ticket_count_account.total_sample_tickets <= 5 then '2. 1-5'
             when ticket_count_account.total_sample_tickets <= 10 then '3. 6-10'
             when ticket_count_account.total_sample_tickets <= 25 then '4. 11-25'
             when ticket_count_account.total_sample_tickets <= 50 then '5. 26-50'
@@ -181,7 +188,7 @@ trial_funnel as (
         end as total_sample_tickets_range_band,
         case
             when ticket_count_account.total_solved_tickets = 0 or ticket_count_account.total_solved_tickets is null then '1. NA'
-            when ticket_count_account.total_solved_tickets <= 5 then '2. 0-5'
+            when ticket_count_account.total_solved_tickets <= 5 then '2. 1-5'
             when ticket_count_account.total_solved_tickets <= 10 then '3. 6-10'
             when ticket_count_account.total_solved_tickets <= 25 then '4. 11-25'
             when ticket_count_account.total_solved_tickets <= 50 then '5. 26-50'
@@ -190,7 +197,7 @@ trial_funnel as (
         end as total_solved_tickets_range_band,
         case
             when ticket_count_account.total_solved_sample_tickets = 0 or ticket_count_account.total_solved_sample_tickets is null then '1. NA'
-            when ticket_count_account.total_solved_sample_tickets <= 5 then '2. 0-5'
+            when ticket_count_account.total_solved_sample_tickets <= 5 then '2. 1-5'
             when ticket_count_account.total_solved_sample_tickets <= 10 then '3. 6-10'
             when ticket_count_account.total_solved_sample_tickets <= 25 then '4. 11-25'
             when ticket_count_account.total_solved_sample_tickets <= 50 then '5. 26-50'
@@ -201,7 +208,7 @@ trial_funnel as (
 
 case
     when ticket_count_account.web_tickets = 0 or ticket_count_account.web_tickets is null then '1. NA'
-    when ticket_count_account.web_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.web_tickets <= 5 then '2. 1-5'
     when ticket_count_account.web_tickets <= 10 then '3. 6-10'
     when ticket_count_account.web_tickets <= 25 then '4. 11-25'
     when ticket_count_account.web_tickets <= 50 then '5. 26-50'
@@ -211,7 +218,7 @@ end as web_tickets_range_band,
 
 case
     when ticket_count_account.email_tickets = 0 or ticket_count_account.email_tickets is null then '1. NA'
-    when ticket_count_account.email_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.email_tickets <= 5 then '2. 1-5'
     when ticket_count_account.email_tickets <= 10 then '3. 6-10'
     when ticket_count_account.email_tickets <= 25 then '4. 11-25'
     when ticket_count_account.email_tickets <= 50 then '5. 26-50'
@@ -221,7 +228,7 @@ end as email_tickets_range_band,
 
 case
     when ticket_count_account.api_tickets = 0 or ticket_count_account.api_tickets is null then '1. NA'
-    when ticket_count_account.api_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.api_tickets <= 5 then '2. 1-5'
     when ticket_count_account.api_tickets <= 10 then '3. 6-10'
     when ticket_count_account.api_tickets <= 25 then '4. 11-25'
     when ticket_count_account.api_tickets <= 50 then '5. 26-50'
@@ -231,7 +238,7 @@ end as api_tickets_range_band,
 
 case
     when ticket_count_account.rule_tickets = 0 or ticket_count_account.rule_tickets is null then '1. NA'
-    when ticket_count_account.rule_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.rule_tickets <= 5 then '2. 1-5'
     when ticket_count_account.rule_tickets <= 10 then '3. 6-10'
     when ticket_count_account.rule_tickets <= 25 then '4. 11-25'
     when ticket_count_account.rule_tickets <= 50 then '5. 26-50'
@@ -241,7 +248,7 @@ end as rule_tickets_range_band,
 
 case
     when ticket_count_account.twitter_tickets = 0 or ticket_count_account.twitter_tickets is null then '1. NA'
-    when ticket_count_account.twitter_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.twitter_tickets <= 5 then '2. 1-5'
     when ticket_count_account.twitter_tickets <= 10 then '3. 6-10'
     when ticket_count_account.twitter_tickets <= 25 then '4. 11-25'
     when ticket_count_account.twitter_tickets <= 50 then '5. 26-50'
@@ -251,7 +258,7 @@ end as twitter_tickets_range_band,
 
 case
     when ticket_count_account.forum_tickets = 0 or ticket_count_account.forum_tickets is null then '1. NA'
-    when ticket_count_account.forum_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.forum_tickets <= 5 then '2. 1-5'
     when ticket_count_account.forum_tickets <= 10 then '3. 6-10'
     when ticket_count_account.forum_tickets <= 25 then '4. 11-25'
     when ticket_count_account.forum_tickets <= 50 then '5. 26-50'
@@ -261,7 +268,7 @@ end as forum_tickets_range_band,
 
 case
     when ticket_count_account.chat_tickets = 0 or ticket_count_account.chat_tickets is null then '1. NA'
-    when ticket_count_account.chat_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.chat_tickets <= 5 then '2. 1-5'
     when ticket_count_account.chat_tickets <= 10 then '3. 6-10'
     when ticket_count_account.chat_tickets <= 25 then '4. 11-25'
     when ticket_count_account.chat_tickets <= 50 then '5. 26-50'
@@ -271,7 +278,7 @@ end as chat_tickets_range_band,
 
 case
     when ticket_count_account.voice_tickets = 0 or ticket_count_account.voice_tickets is null then '1. NA'
-    when ticket_count_account.voice_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.voice_tickets <= 5 then '2. 1-5'
     when ticket_count_account.voice_tickets <= 10 then '3. 6-10'
     when ticket_count_account.voice_tickets <= 25 then '4. 11-25'
     when ticket_count_account.voice_tickets <= 50 then '5. 26-50'
@@ -281,7 +288,7 @@ end as voice_tickets_range_band,
 
 case
     when ticket_count_account.facebook_tickets = 0 or ticket_count_account.facebook_tickets is null then '1. NA'
-    when ticket_count_account.facebook_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.facebook_tickets <= 5 then '2. 1-5'
     when ticket_count_account.facebook_tickets <= 10 then '3. 6-10'
     when ticket_count_account.facebook_tickets <= 25 then '4. 11-25'
     when ticket_count_account.facebook_tickets <= 50 then '5. 26-50'
@@ -291,7 +298,7 @@ end as facebook_tickets_range_band,
 
 case
     when ticket_count_account.mobile_sdk_tickets = 0 or ticket_count_account.mobile_sdk_tickets is null then '1. NA'
-    when ticket_count_account.mobile_sdk_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.mobile_sdk_tickets <= 5 then '2. 1-5'
     when ticket_count_account.mobile_sdk_tickets <= 10 then '3. 6-10'
     when ticket_count_account.mobile_sdk_tickets <= 25 then '4. 11-25'
     when ticket_count_account.mobile_sdk_tickets <= 50 then '5. 26-50'
@@ -302,7 +309,7 @@ end as mobile_sdk_tickets_range_band,
 
 case
     when ticket_count_account.help_center_tickets = 0 or ticket_count_account.help_center_tickets is null then '1. NA'
-    when ticket_count_account.help_center_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.help_center_tickets <= 5 then '2. 1-5'
     when ticket_count_account.help_center_tickets <= 10 then '3. 6-10'
     when ticket_count_account.help_center_tickets <= 25 then '4. 11-25'
     when ticket_count_account.help_center_tickets <= 50 then '5. 26-50'
@@ -312,7 +319,7 @@ end as help_center_tickets_range_band,
 
 case
     when ticket_count_account.sample_ticket_tickets = 0 or ticket_count_account.sample_ticket_tickets is null then '1. NA'
-    when ticket_count_account.sample_ticket_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.sample_ticket_tickets <= 5 then '2. 1-5'
     when ticket_count_account.sample_ticket_tickets <= 10 then '3. 6-10'
     when ticket_count_account.sample_ticket_tickets <= 25 then '4. 11-25'
     when ticket_count_account.sample_ticket_tickets <= 50 then '5. 26-50'
@@ -322,7 +329,7 @@ end as sample_ticket_tickets_range_band,
 
 case
     when ticket_count_account.any_channel_tickets = 0 or ticket_count_account.any_channel_tickets is null then '1. NA'
-    when ticket_count_account.any_channel_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.any_channel_tickets <= 5 then '2. 1-5'
     when ticket_count_account.any_channel_tickets <= 10 then '3. 6-10'
     when ticket_count_account.any_channel_tickets <= 25 then '4. 11-25'
     when ticket_count_account.any_channel_tickets <= 50 then '5. 26-50'
@@ -332,7 +339,7 @@ end as any_channel_tickets_range_band,
 
 case
     when ticket_count_account.mobile_tickets = 0 or ticket_count_account.mobile_tickets is null then '1. NA'
-    when ticket_count_account.mobile_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.mobile_tickets <= 5 then '2. 1-5'
     when ticket_count_account.mobile_tickets <= 10 then '3. 6-10'
     when ticket_count_account.mobile_tickets <= 25 then '4. 11-25'
     when ticket_count_account.mobile_tickets <= 50 then '5. 26-50'
@@ -342,7 +349,7 @@ end as mobile_tickets_range_band,
 
 case
     when ticket_count_account.sms_tickets = 0 or ticket_count_account.sms_tickets is null then '1. NA'
-    when ticket_count_account.sms_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.sms_tickets <= 5 then '2. 1-5'
     when ticket_count_account.sms_tickets <= 10 then '3. 6-10'
     when ticket_count_account.sms_tickets <= 25 then '4. 11-25'
     when ticket_count_account.sms_tickets <= 50 then '5. 26-50'
@@ -352,7 +359,7 @@ end as sms_tickets_range_band,
 
 case
     when ticket_count_account.line_tickets = 0 or ticket_count_account.line_tickets is null then '1. NA'
-    when ticket_count_account.line_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.line_tickets <= 5 then '2. 1-5'
     when ticket_count_account.line_tickets <= 10 then '3. 6-10'
     when ticket_count_account.line_tickets <= 25 then '4. 11-25'
     when ticket_count_account.line_tickets <= 50 then '5. 26-50'
@@ -362,7 +369,7 @@ end as line_tickets_range_band,
 
 case
     when ticket_count_account.wechat_tickets = 0 or ticket_count_account.wechat_tickets is null then '1. NA'
-    when ticket_count_account.wechat_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.wechat_tickets <= 5 then '2. 1-5'
     when ticket_count_account.wechat_tickets <= 10 then '3. 6-10'
     when ticket_count_account.wechat_tickets <= 25 then '4. 11-25'
     when ticket_count_account.wechat_tickets <= 50 then '5. 26-50'
@@ -372,7 +379,7 @@ end as wechat_tickets_range_band,
 
 case
     when ticket_count_account.whatsapp_tickets = 0 or ticket_count_account.whatsapp_tickets is null then '1. NA'
-    when ticket_count_account.whatsapp_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.whatsapp_tickets <= 5 then '2. 1-5'
     when ticket_count_account.whatsapp_tickets <= 10 then '3. 6-10'
     when ticket_count_account.whatsapp_tickets <= 25 then '4. 11-25'
     when ticket_count_account.whatsapp_tickets <= 50 then '5. 26-50'
@@ -382,7 +389,7 @@ end as whatsapp_tickets_range_band,
 
 case
     when ticket_count_account.native_messaging_tickets = 0 or ticket_count_account.native_messaging_tickets is null then '1. NA'
-    when ticket_count_account.native_messaging_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.native_messaging_tickets <= 5 then '2. 1-5'
     when ticket_count_account.native_messaging_tickets <= 10 then '3. 6-10'
     when ticket_count_account.native_messaging_tickets <= 25 then '4. 11-25'
     when ticket_count_account.native_messaging_tickets <= 50 then '5. 26-50'
@@ -392,7 +399,7 @@ end as native_messaging_tickets_range_band,
 
 case
     when ticket_count_account.mailgun_tickets = 0 or ticket_count_account.mailgun_tickets is null then '1. NA'
-    when ticket_count_account.mailgun_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.mailgun_tickets <= 5 then '2. 1-5'
     when ticket_count_account.mailgun_tickets <= 10 then '3. 6-10'
     when ticket_count_account.mailgun_tickets <= 25 then '4. 11-25'
     when ticket_count_account.mailgun_tickets <= 50 then '5. 26-50'
@@ -403,7 +410,7 @@ end as mailgun_tickets_range_band,
 
 case
     when ticket_count_account.messagebird_sms_tickets = 0 or ticket_count_account.messagebird_sms_tickets is null then '1. NA'
-    when ticket_count_account.messagebird_sms_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.messagebird_sms_tickets <= 5 then '2. 1-5'
     when ticket_count_account.messagebird_sms_tickets <= 10 then '3. 6-10'
     when ticket_count_account.messagebird_sms_tickets <= 25 then '4. 11-25'
     when ticket_count_account.messagebird_sms_tickets <= 50 then '5. 26-50'
@@ -413,7 +420,7 @@ end as messagebird_sms_tickets_range_band,
 
 case
     when ticket_count_account.telegram_tickets = 0 or ticket_count_account.telegram_tickets is null then '1. NA'
-    when ticket_count_account.telegram_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.telegram_tickets <= 5 then '2. 1-5'
     when ticket_count_account.telegram_tickets <= 10 then '3. 6-10'
     when ticket_count_account.telegram_tickets <= 25 then '4. 11-25'
     when ticket_count_account.telegram_tickets <= 50 then '5. 26-50'
@@ -423,7 +430,7 @@ end as telegram_tickets_range_band,
 
 case
     when ticket_count_account.twilio_sms_tickets = 0 or ticket_count_account.twilio_sms_tickets is null then '1. NA'
-    when ticket_count_account.twilio_sms_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.twilio_sms_tickets <= 5 then '2. 1-5'
     when ticket_count_account.twilio_sms_tickets <= 10 then '3. 6-10'
     when ticket_count_account.twilio_sms_tickets <= 25 then '4. 11-25'
     when ticket_count_account.twilio_sms_tickets <= 50 then '5. 26-50'
@@ -433,7 +440,7 @@ end as twilio_sms_tickets_range_band,
 
 case
     when ticket_count_account.viber_tickets = 0 or ticket_count_account.viber_tickets is null then '1. NA'
-    when ticket_count_account.viber_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.viber_tickets <= 5 then '2. 1-5'
     when ticket_count_account.viber_tickets <= 10 then '3. 6-10'
     when ticket_count_account.viber_tickets <= 25 then '4. 11-25'
     when ticket_count_account.viber_tickets <= 50 then '5. 26-50'
@@ -443,7 +450,7 @@ end as viber_tickets_range_band,
 
 case
     when ticket_count_account.google_rcs_tickets = 0 or ticket_count_account.google_rcs_tickets is null then '1. NA'
-    when ticket_count_account.google_rcs_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.google_rcs_tickets <= 5 then '2. 1-5'
     when ticket_count_account.google_rcs_tickets <= 10 then '3. 6-10'
     when ticket_count_account.google_rcs_tickets <= 25 then '4. 11-25'
     when ticket_count_account.google_rcs_tickets <= 50 then '5. 26-50'
@@ -453,7 +460,7 @@ end as google_rcs_tickets_range_band,
 
 case
     when ticket_count_account.apple_business_chat_tickets = 0 or ticket_count_account.apple_business_chat_tickets is null then '1. NA'
-    when ticket_count_account.apple_business_chat_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.apple_business_chat_tickets <= 5 then '2. 1-5'
     when ticket_count_account.apple_business_chat_tickets <= 10 then '3. 6-10'
     when ticket_count_account.apple_business_chat_tickets <= 25 then '4. 11-25'
     when ticket_count_account.apple_business_chat_tickets <= 50 then '5. 26-50'
@@ -463,7 +470,7 @@ end as apple_business_chat_tickets_range_band,
 
 case
     when ticket_count_account.google_business_messages_tickets = 0 or ticket_count_account.google_business_messages_tickets is null then '1. NA'
-    when ticket_count_account.google_business_messages_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.google_business_messages_tickets <= 5 then '2. 1-5'
     when ticket_count_account.google_business_messages_tickets <= 10 then '3. 6-10'
     when ticket_count_account.google_business_messages_tickets <= 25 then '4. 11-25'
     when ticket_count_account.google_business_messages_tickets <= 50 then '5. 26-50'
@@ -473,7 +480,7 @@ end as google_business_messages_tickets_range_band,
 
 case
     when ticket_count_account.kakaotalk_tickets = 0 or ticket_count_account.kakaotalk_tickets is null then '1. NA'
-    when ticket_count_account.kakaotalk_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.kakaotalk_tickets <= 5 then '2. 1-5'
     when ticket_count_account.kakaotalk_tickets <= 10 then '3. 6-10'
     when ticket_count_account.kakaotalk_tickets <= 25 then '4. 11-25'
     when ticket_count_account.kakaotalk_tickets <= 50 then '5. 26-50'
@@ -483,7 +490,7 @@ end as kakaotalk_tickets_range_band,
 
 case
     when ticket_count_account.instagram_dm_tickets = 0 or ticket_count_account.instagram_dm_tickets is null then '1. NA'
-    when ticket_count_account.instagram_dm_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.instagram_dm_tickets <= 5 then '2. 1-5'
     when ticket_count_account.instagram_dm_tickets <= 10 then '3. 6-10'
     when ticket_count_account.instagram_dm_tickets <= 25 then '4. 11-25'
     when ticket_count_account.instagram_dm_tickets <= 50 then '5. 26-50'
@@ -493,7 +500,7 @@ end as instagram_dm_tickets_range_band,
 
 case
     when ticket_count_account.sunshine_conversations_api_tickets = 0 or ticket_count_account.sunshine_conversations_api_tickets is null then '1. NA'
-    when ticket_count_account.sunshine_conversations_api_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.sunshine_conversations_api_tickets <= 5 then '2. 1-5'
     when ticket_count_account.sunshine_conversations_api_tickets <= 10 then '3. 6-10'
     when ticket_count_account.sunshine_conversations_api_tickets <= 25 then '4. 11-25'
     when ticket_count_account.sunshine_conversations_api_tickets <= 50 then '5. 26-50'
@@ -503,7 +510,7 @@ end as sunshine_conversations_api_tickets_range_band,
 
 case
     when ticket_count_account.chat_transcript_tickets = 0 or ticket_count_account.chat_transcript_tickets is null then '1. NA'
-    when ticket_count_account.chat_transcript_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.chat_transcript_tickets <= 5 then '2. 1-5'
     when ticket_count_account.chat_transcript_tickets <= 10 then '3. 6-10'
     when ticket_count_account.chat_transcript_tickets <= 25 then '4. 11-25'
     when ticket_count_account.chat_transcript_tickets <= 50 then '5. 26-50'
@@ -513,7 +520,7 @@ end as chat_transcript_tickets_range_band,
 
 case
     when ticket_count_account.business_messaging_slack_connect_tickets = 0 or ticket_count_account.business_messaging_slack_connect_tickets is null then '1. NA'
-    when ticket_count_account.business_messaging_slack_connect_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.business_messaging_slack_connect_tickets <= 5 then '2. 1-5'
     when ticket_count_account.business_messaging_slack_connect_tickets <= 10 then '3. 6-10'
     when ticket_count_account.business_messaging_slack_connect_tickets <= 25 then '4. 11-25'
     when ticket_count_account.business_messaging_slack_connect_tickets <= 50 then '5. 26-50'
@@ -523,7 +530,7 @@ end as business_messaging_slack_connect_tickets_range_band,
 
 case
     when ticket_count_account.answer_bot_for_agents_tickets = 0 or ticket_count_account.answer_bot_for_agents_tickets is null then '1. NA'
-    when ticket_count_account.answer_bot_for_agents_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.answer_bot_for_agents_tickets <= 5 then '2. 1-5'
     when ticket_count_account.answer_bot_for_agents_tickets <= 10 then '3. 6-10'
     when ticket_count_account.answer_bot_for_agents_tickets <= 25 then '4. 11-25'
     when ticket_count_account.answer_bot_for_agents_tickets <= 50 then '5. 26-50'
@@ -533,7 +540,7 @@ end as answer_bot_for_agents_tickets_range_band,
 
 case
     when ticket_count_account.answer_bot_for_slack_tickets = 0 or ticket_count_account.answer_bot_for_slack_tickets is null then '1. NA'
-    when ticket_count_account.answer_bot_for_slack_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.answer_bot_for_slack_tickets <= 5 then '2. 1-5'
     when ticket_count_account.answer_bot_for_slack_tickets <= 10 then '3. 6-10'
     when ticket_count_account.answer_bot_for_slack_tickets <= 25 then '4. 11-25'
     when ticket_count_account.answer_bot_for_slack_tickets <= 50 then '5. 26-50'
@@ -543,7 +550,7 @@ end as answer_bot_for_slack_tickets_range_band,
 
 case
     when ticket_count_account.answer_bot_for_sdk_tickets = 0 or ticket_count_account.answer_bot_for_sdk_tickets is null then '1. NA'
-    when ticket_count_account.answer_bot_for_sdk_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.answer_bot_for_sdk_tickets <= 5 then '2. 1-5'
     when ticket_count_account.answer_bot_for_sdk_tickets <= 10 then '3. 6-10'
     when ticket_count_account.answer_bot_for_sdk_tickets <= 25 then '4. 11-25'
     when ticket_count_account.answer_bot_for_sdk_tickets <= 50 then '5. 26-50'
@@ -553,7 +560,7 @@ end as answer_bot_for_sdk_tickets_range_band,
 
 case
     when ticket_count_account.answer_bot_api_tickets = 0 or ticket_count_account.answer_bot_api_tickets is null then '1. NA'
-    when ticket_count_account.answer_bot_api_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.answer_bot_api_tickets <= 5 then '2. 1-5'
     when ticket_count_account.answer_bot_api_tickets <= 10 then '3. 6-10'
     when ticket_count_account.answer_bot_api_tickets <= 25 then '4. 11-25'
     when ticket_count_account.answer_bot_api_tickets <= 50 then '5. 26-50'
@@ -563,7 +570,7 @@ end as answer_bot_api_tickets_range_band,
 
 case
     when ticket_count_account.answer_bot_for_web_widget_tickets = 0 or ticket_count_account.answer_bot_for_web_widget_tickets is null then '1. NA'
-    when ticket_count_account.answer_bot_for_web_widget_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.answer_bot_for_web_widget_tickets <= 5 then '2. 1-5'
     when ticket_count_account.answer_bot_for_web_widget_tickets <= 10 then '3. 6-10'
     when ticket_count_account.answer_bot_for_web_widget_tickets <= 25 then '4. 11-25'
     when ticket_count_account.answer_bot_for_web_widget_tickets <= 50 then '5. 26-50'
@@ -573,7 +580,7 @@ end as answer_bot_for_web_widget_tickets_range_band,
 
 case
     when ticket_count_account.side_conversation_tickets = 0 or ticket_count_account.side_conversation_tickets is null then '1. NA'
-    when ticket_count_account.side_conversation_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.side_conversation_tickets <= 5 then '2. 1-5'
     when ticket_count_account.side_conversation_tickets <= 10 then '3. 6-10'
     when ticket_count_account.side_conversation_tickets <= 25 then '4. 11-25'
     when ticket_count_account.side_conversation_tickets <= 50 then '5. 26-50'
@@ -583,7 +590,7 @@ end as side_conversation_tickets_range_band,
 
 case
     when ticket_count_account.sunshine_conversations_facebook_messenger_tickets = 0 or ticket_count_account.sunshine_conversations_facebook_messenger_tickets is null then '1. NA'
-    when ticket_count_account.sunshine_conversations_facebook_messenger_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.sunshine_conversations_facebook_messenger_tickets <= 5 then '2. 1-5'
     when ticket_count_account.sunshine_conversations_facebook_messenger_tickets <= 10 then '3. 6-10'
     when ticket_count_account.sunshine_conversations_facebook_messenger_tickets <= 25 then '4. 11-25'
     when ticket_count_account.sunshine_conversations_facebook_messenger_tickets <= 50 then '5. 26-50'
@@ -593,7 +600,7 @@ end as sunshine_conversations_facebook_messenger_tickets_range_band,
 
 case
     when ticket_count_account.sunshine_conversations_twitter_dm_tickets = 0 or ticket_count_account.sunshine_conversations_twitter_dm_tickets is null then '1. NA'
-    when ticket_count_account.sunshine_conversations_twitter_dm_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.sunshine_conversations_twitter_dm_tickets <= 5 then '2. 1-5'
     when ticket_count_account.sunshine_conversations_twitter_dm_tickets <= 10 then '3. 6-10'
     when ticket_count_account.sunshine_conversations_twitter_dm_tickets <= 25 then '4. 11-25'
     when ticket_count_account.sunshine_conversations_twitter_dm_tickets <= 50 then '5. 26-50'
@@ -603,7 +610,7 @@ end as sunshine_conversations_twitter_dm_tickets_range_band,
 
 case
     when ticket_count_account.other_tickets = 0 or ticket_count_account.other_tickets is null then '1. NA'
-    when ticket_count_account.other_tickets <= 5 then '2. 0-5'
+    when ticket_count_account.other_tickets <= 5 then '2. 1-5'
     when ticket_count_account.other_tickets <= 10 then '3. 6-10'
     when ticket_count_account.other_tickets <= 25 then '4. 11-25'
     when ticket_count_account.other_tickets <= 50 then '5. 26-50'
@@ -642,6 +649,7 @@ main as (
         trial_funnel.product_at_win_adjusted,
         trial_funnel.employee_range_band,
         trial_funnel.arr_at_win_band,
+        trial_funnel.cart_visits_band,
         trial_funnel.seats_at_win_range_band,
         trial_funnel.total_tickets_range_band,
         trial_funnel.total_sample_tickets_range_band,
@@ -723,9 +731,6 @@ from main
 
 
 ------ Check propagated table
-
-
-
 
 
 
