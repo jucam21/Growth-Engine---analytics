@@ -451,5 +451,31 @@ limit 10
 
 
 
+---- Check trial extras data
+
+select trial_extra_key, count(*)
+from propagated_cleansed.product_accounts.base_trial_extras
+where 
+    lower(trial_extra_key) like '%country%'
+    or lower(trial_extra_key) like '%region%'
+group by trial_extra_key
+
+
+
+with region as (
+    select instance_account_id, trial_extra_value as trial_region
+    from propagated_cleansed.product_accounts.base_trial_extras
+    where trial_extra_key = 'Inferred_Region'
+)
+
+select *
+from region
+limit 10
+
+
+select trial_extra_value, count(*)
+from region
+group by trial_extra_value
+order by 2 desc
 
 

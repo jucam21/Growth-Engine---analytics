@@ -142,6 +142,8 @@ trial_funnel as (
         ticket_count_account.total_solved_sample_tickets as total_solved_sample_tickets,
         -- Add trial type SKUs
         trial_types.trial_type trial_type_sku,
+        -- Adding region 
+        region_.trial_extra_value as region,
         -- Create grouping variables
         case 
             when trial_funnel.arr_at_win = 0 or trial_funnel.arr_at_win is null then '1. NA'
@@ -624,6 +626,9 @@ end as other_tickets_range_band
         on trial_funnel.account_id = ticket_count_account.instance_account_id
     left join trial_types
         on trial_funnel.account_id = trial_types.instance_account_id
+    left join propagated_cleansed.product_accounts.base_trial_extras region_
+        on trial_funnel.account_id = region_.instance_account_id
+        and region_.trial_extra_key = 'Inferred_Region'
 ),
 
 
@@ -645,6 +650,7 @@ main as (
         trial_funnel.in_trial_ticket_created,
         trial_funnel.in_trial_ticket_solved,
         trial_funnel.trial_type_sku,
+        trial_funnel.region,
         -- Variables for grouping that are bucketed
         trial_funnel.product_at_win_adjusted,
         trial_funnel.employee_range_band,
@@ -725,12 +731,15 @@ trial_funnel.other_tickets_range_band,
     group by all
 )
 
-select *
+select 
+    region, 
+    count(*) as tot_obs,
+    sum(verified_trials) as tot_verified_trials,
 from main
+group by region
+order by 1
 --limit 10
 
-
------- Check propagated table
 
 
 

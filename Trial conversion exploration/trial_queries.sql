@@ -719,3 +719,16 @@ select *
 from trial_types
 limit 10
 
+
+-----------------------------------------------
+--- 16. Trial region
+
+with region as (
+    select instance_account_id, trial_extra_value as trial_region
+    from propagated_cleansed.product_accounts.base_trial_extras
+    where trial_extra_key = 'Inferred_Region'
+)
+
+select *
+from region
+limit 10
