@@ -456,26 +456,107 @@ limit 10
 select trial_extra_key, count(*)
 from propagated_cleansed.product_accounts.base_trial_extras
 where 
-    lower(trial_extra_key) like '%country%'
-    or lower(trial_extra_key) like '%region%'
+    lower(trial_extra_key) like '%comp%'
+    --or lower(trial_extra_key) like '%region%'
 group by trial_extra_key
+order by 2 desc
 
 
 
 with region as (
     select instance_account_id, trial_extra_value as trial_region
     from propagated_cleansed.product_accounts.base_trial_extras
-    where trial_extra_key = 'Inferred_Region'
+    where 
+        trial_extra_key = 'Inferred_Region'
+        and date(created_timestamp) > date('2025-05-01')
 )
+
+
+select trial_region, count(*)
+from region
+group by trial_region
+order by 2 desc
+
+
+
+
 
 select *
 from region
 limit 10
 
 
-select trial_extra_value, count(*)
-from region
-group by trial_extra_value
+
+
+
+with size as (
+    select instance_account_id, trial_extra_value as trial_size
+    from propagated_cleansed.product_accounts.base_trial_extras
+    where 
+        trial_extra_key = 'cb_company_size'
+        and date(created_timestamp) > date('2025-05-01')
+)
+
+
+select trial_size, count(*)
+from size
+group by trial_size
 order by 2 desc
+
+
+
+
+select *
+from size
+limit 10
+
+
+
+
+
+
+---- Validate region
+
+select
+    sf.region_c,
+    region_.trial_extra_value as inferred_region,
+    count(distinct af.instance_account_id) as num_trials,
+    count(distinct(iff(af.first_verified_date is not null, af.instance_account_id, null))) as num_verified_trials
+
+from presentation.growth_analytics.trial_accounts af
+left join cleansed.salesforce.salesforce_lead_bcv as sf
+    on af.cust_owner_email = sf.email
+left join propagated_cleansed.product_accounts.base_trial_extras region_
+        on af.instance_account_id = region_.instance_account_id
+        and region_.trial_extra_key = 'Inferred_Region'
+where af.instance_account_created_date >= '2025-01-01'
+    and af.is_direct_buy = FALSE
+    and sf.region_c is not null
+    --and af.instance_account_created_date <= '2025-05-11'
+
+group by all
+order by 3 desc
+
+
+
+
+---- Validate sizing
+
+select
+    region_.trial_extra_value as inferred_size,
+    count(distinct af.instance_account_id) as num_trials,
+    count(distinct(iff(af.first_verified_date is not null, af.instance_account_id, null))) as num_verified_trials
+
+from presentation.growth_analytics.trial_accounts af
+left join propagated_cleansed.product_accounts.base_trial_extras region_
+        on af.instance_account_id = region_.instance_account_id
+        and region_.trial_extra_key = 'help_desk_size'
+where af.instance_account_created_date >= '2025-01-01'
+    and af.is_direct_buy = FALSE
+    --and af.instance_account_created_date <= '2025-05-11'
+
+group by all
+order by 3 desc
+
 
 

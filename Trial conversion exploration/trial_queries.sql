@@ -732,3 +732,17 @@ with region as (
 select *
 from region
 limit 10
+
+
+-----------------------------------------------
+--- 17. Help desk size
+
+with help_desk_size as (
+    select instance_account_id, trial_extra_value as heklp_desk_size
+    from propagated_cleansed.product_accounts.base_trial_extras
+    where trial_extra_key = 'help_desk_size'
+)
+
+select *
+from help_desk_size
+limit 10
