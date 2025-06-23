@@ -350,8 +350,9 @@ import_finance_subscriptions as (
                 finance.billing_account_id = snapshot.billing_account_id
                 and finance.service_date = snapshot.source_snapshot_date
     where
-        finance.subscription_status = 'Active'
-        and (
+        -- Removed filter on subscription_status because it was showing some accounts as "Expired"
+        --finance.subscription_status = 'Active'
+        ( 
             finance.subscription_kind = 'Primary'
             or finance.subscription_kind is null
         )
