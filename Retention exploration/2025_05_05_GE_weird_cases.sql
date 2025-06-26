@@ -387,3 +387,56 @@ limit 10
 
 select distinct account_category
 from functional.growth_engine.dim_growth_engine_customer_accounts
+
+
+
+---- Validate account count diff
+
+with redeemed as (
+    select
+        *,
+        'Redeemed' as data_type
+    from sandbox.juan_salgado.ge_dashboard_test
+    where unique_count_work_modal_2_click is not null
+),
+
+
+
+
+with redeemed as (
+    select
+        *,
+        'Redeemed' as data_type
+    from sandbox.juan_salgado.ge_dashboard_test
+    where unique_count_work_modal_2_click is not null
+),
+
+not_redeemed as (
+    select a.*,
+row_number() over (
+            partition by a.account_id
+            order by a.loaded_date desc
+        ) as rank,
+        'Not redeemed' as data_type
+from sandbox.juan_salgado.ge_dashboard_test as a
+left join redeemed as b
+on a.account_id = b.account_id
+where b.account_id is null
+qualify rank = 1
+)
+
+
+select 
+    count(*) as total_accounts,
+    count(distinct account_id) as unique_accounts
+from not_redeemed
+where account_id is not null
+
+
+select 
+    data_type,
+    count(*) as total_accounts,
+    count(distinct account_id) as unique_accounts
+from sandbox.juan_salgado.ge_growth_metrics_test
+group by all
+
