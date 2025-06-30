@@ -771,11 +771,27 @@ External email connected
 
 
 
-select region, count(*)
+select IS_EXTERNAL_EMAIL_CONNECTED, count(*)
 from functional.growth_engine.dim_growth_engine_customer_accounts 
 where is_trial = true
 group by all
 order by 2 desc
+
+
+select zendesk_account_id, SUPPORT_TICKET_COUNTS
+from functional.growth_engine.dim_growth_engine_customer_accounts 
+limit 10
+
+
+select 
+    zendesk_account_id, 
+    SUPPORT_TICKET_COUNTS:total_mail_tickets parsed_test,
+    SUPPORT_TICKET_COUNTS['total_mail_tickets'] parsed_test2,
+    SUPPORT_TICKET_COUNTS
+from functional.growth_engine.dim_growth_engine_customer_accounts 
+limit 10
+
+
 
 
 with accounts as (
@@ -797,7 +813,7 @@ with accounts as (
                 {{EMPLOYEE_RULE}} = 'all'
                 then 1
             when
-                EMPLOYEE_COUNT_RANGE = {{EMPLOYEE_RULE}}
+                TRIAL_EMPLOYEE_COUNT_RANGE = {{EMPLOYEE_RULE}}
                 then 1
             else 0
         end as employee_filter,
@@ -807,60 +823,41 @@ with accounts as (
                 {{REGION_RULE}} = 'all'
                 then 1
             when
-                region = {{REGION_RULE}}
+                TRIAL_REGION = {{REGION_RULE}}
                 then 1
             else 0
         end as region_filter,
-        -- Min number tickets
+        -- Min number tickets by channel 1
         case
             when
-                cast({{TICKETS_RULE}} as string) = 'all'
+                cast({{TICKETS_RULE_1}} as string) = 'all'
                 then 1
             when
-                TOTAL_TICKETS >= {{TICKETS_RULE}}
+                support_ticket_counts[{{TICKETS_RULE_1_TEXT}}] >= {{TICKETS_RULE_1}}
                 then 1
             else 0
-        end as tickets_filter,
-        -- Min MSG number tickets
+        end as tickets_filter_1,
+        -- Min number tickets by channel 2
         case
             when
-                cast({{MSG_TICKETS_RULE}} as string) = 'all'
+                cast({{TICKETS_RULE_2}} as string) = 'all'
                 then 1
             when
-                TOTAL_MSG_TICKETS >= {{MSG_TICKETS_RULE}}
+                support_ticket_counts[{{TICKETS_RULE_2_TEXT}}] >= {{TICKETS_RULE_2}}
                 then 1
             else 0
-        end as msg_tickets_filter,
-        -- Min WEB number tickets
-        case
+        end as tickets_filter_2,
+        -- Min number tickets by channel 3
+        case    
             when
-                cast({{WEB_TICKETS_RULE}} as string) = 'all'
+                cast({{TICKETS_RULE_3}} as string) = 'all'
                 then 1
             when
-                TOTAL_WEB_FORM_TICKETS >= {{WEB_TICKETS_RULE}}
+                support_ticket_counts[{{TICKETS_RULE_3_TEXT}}] >= {{TICKETS_RULE_3}}
                 then 1
-            else 0
-        end as web_tickets_filter,
-        -- Min CHAT number tickets
-        case
-            when
-                cast({{CHAT_TICKETS_RULE}} as string) = 'all'
-                then 1
-            when
-                TOTAL_CHAT_TICKETS >= {{CHAT_TICKETS_RULE}}
-                then 1
-            else 0
-        end as chat_tickets_filter,
-        -- Min TALK number tickets
-        case
-            when
-                cast({{TALK_TICKETS_RULE}} as string) = 'all'
-                then 1
-            when
-                TOTAL_TALK_TICKETS >= {{TALK_TICKETS_RULE}}
-                then 1
-            else 0
-        end as talk_tickets_filter,
+            else
+                0
+        end as tickets_filter_3,
         -- HC
         case
             when
@@ -904,19 +901,14 @@ accounts_funnel as (
         sales_model, 
         TRIAL_AGE,
         TRIAL_SKU_NAMES,
-        TOTAL_TICKETS,
-        TOTAL_SOLVED_TICKETS,
-        TOTAL_SAMPLE_TICKETS
+        support_ticket_counts[{{TICKETS_RULE_1_TEXT}}] as TICKETS_RULE_1_TEXT,
+        support_ticket_counts[{{TICKETS_RULE_2_TEXT}}] as TICKETS_RULE_2_TEXT,
+        support_ticket_counts[{{TICKETS_RULE_3_TEXT}}] as TICKETS_RULE_3_TEXT
     from accounts
     where 
         trial_account_age_filter = 1
         and employee_filter = 1
         and region_filter = 1
-        and tickets_filter = 1
-        and msg_tickets_filter = 1
-        and web_tickets_filter = 1
-        and chat_tickets_filter = 1
-        and talk_tickets_filter = 1
         and hc_filter = 1
         and sample_ticket_filter = 1
         and external_email_filter = 1
@@ -928,14 +920,13 @@ funnel as (
         sum(trial_account_age_filter) trial_account_age_filter,
         sum(case when trial_account_age_filter = 1 and employee_filter = 1 then 1 else 0 end) employee_filter,
         sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 then 1 else 0 end) region_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and tickets_filter = 1 then 1 else 0 end) tickets_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and tickets_filter = 1 and msg_tickets_filter = 1 then 1 else 0 end) msg_tickets_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and tickets_filter = 1 and msg_tickets_filter = 1 and web_tickets_filter = 1 then 1 else 0 end) web_tickets_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and tickets_filter = 1 and msg_tickets_filter = 1 and web_tickets_filter = 1 and chat_tickets_filter = 1 then 1 else 0 end) chat_tickets_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and tickets_filter = 1 and msg_tickets_filter = 1 and web_tickets_filter = 1 and chat_tickets_filter = 1 and talk_tickets_filter = 1 then 1 else 0 end) talk_tickets_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and tickets_filter = 1 and msg_tickets_filter = 1 and web_tickets_filter = 1 and chat_tickets_filter = 1 and talk_tickets_filter = 1 and hc_filter = 1 then 1 else 0 end) hc_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and tickets_filter = 1 and msg_tickets_filter = 1 and web_tickets_filter = 1 and chat_tickets_filter = 1 and talk_tickets_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 then 1 else 0 end) sample_ticket_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and tickets_filter = 1 and msg_tickets_filter = 1 and web_tickets_filter = 1 and chat_tickets_filter = 1 and talk_tickets_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 then 1 else 0 end) external_email_filter
+        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 then 1 else 0 end) hc_filter,
+        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 then 1 else 0 end) sample_ticket_filter,
+        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 then 1 else 0 end) external_email_filter,
+        -- Add ticket filters
+        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 and tickets_filter_1 = 1 then 1 else 0 end) tickets_filter_1,
+        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 and tickets_filter_2 = 1 then 1 else 0 end) tickets_filter_2,
+        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 and tickets_filter_3 = 1 then 1 else 0 end) tickets_filter_3,
     from accounts
 )
 

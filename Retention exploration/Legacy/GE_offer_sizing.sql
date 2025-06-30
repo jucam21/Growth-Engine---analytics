@@ -2443,3 +2443,34 @@ from joined_info
 
 
 
+
+
+--- Add logins to query
+
+select 
+    instance_account_id,
+    count(*) as login_count,
+    date(max(agent_last_login_timestamp)) as last_login_date
+from propagated_foundational.product_agent_info.dim_agent_emails_bcv
+group by instance_account_id
+order by 2 desc
+limit 10
+
+
+
+select *
+from cleansed.segment_support.groups_bcv
+where group_id = '21756449'
+order by received_at desc
+limit 10
+
+
+select 
+    instance_account_id,
+    count(*) as login_count,
+    date(max(agent_last_login_timestamp)) as last_login_date
+from cleansed.segment_support.groups_bcv
+group by 1
+
+
+
