@@ -70,10 +70,13 @@ custom_price as (
 ),
 --- Logins
 logins as (
-    select 
+    select  
         instance_account_id,
         date(max(agent_last_login_timestamp)) as last_login_date
     from propagated_foundational.product_agent_info.dim_agent_emails_bcv
+    where
+        agent_role in ('Admin', 'Billing Admin')
+        or agent_is_owner = True
     group by instance_account_id
 ),
 -- Joining all info

@@ -560,3 +560,33 @@ order by 3 desc
 
 
 
+
+select 
+    max(sent_at) as max_date,
+    count(*) as total_accounts,
+    count(distinct account_id) as unique_accounts,
+    sum(case when account_id is not null then 1 else 0 end) as accounts_no_null
+from RAW.CENTRAL_ADMIN.ONBOARDING_PANEL_TASK_COMPLETION
+
+
+
+
+
+
+select  
+    instance_account_id,
+    date(max(agent_last_login_timestamp)) as last_login_date
+from propagated_foundational.product_agent_info.dim_agent_emails_bcv
+group by instance_account_id
+
+
+
+select 
+    AGENT_ROLE,
+    AGENT_IS_OWNER,
+    count(*) as total_accounts,
+from propagated_foundational.product_agent_info.dim_agent_emails_bcv
+group by all
+order by 2 desc, 1
+
+
