@@ -139,6 +139,8 @@ cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2
 
 
 
+----------------------------------------------------
+--- Creating funnel and measuring if duplicates
 with prompt_load as (
     select
         account_id,
@@ -250,7 +252,479 @@ modal_see_all_plans as (
     from
         cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2
     group by all
+),
+
+--- Counting duplicates
+
+prompt_load_duplicates as (
+    select 
+        date,
+        account_id,
+        'prompt_load' as source,
+        count(*) as tot_obs
+    from prompt_load
+    group by all
+    having count(*) > 1
+),
+
+modal_load_duplicates as (
+    select 
+        date,
+        account_id,
+        'modal_load' as source,
+        count(*) as tot_obs
+    from modal_load
+    group by all
+    having count(*) > 1
+),
+
+modal_dismiss_duplicates as (
+    select 
+        date,
+        account_id,
+        'modal_dismiss' as source,
+        count(*) as tot_obs
+    from modal_dismiss
+    group by all
+    having count(*) > 1
+),
+
+modal_buy_now_duplicates as (
+    select 
+        date,
+        account_id,
+        'modal_buy_now' as source,
+        count(*) as tot_obs
+    from modal_buy_now
+    group by all
+    having count(*) > 1
+),
+
+modal_agent_increase_duplicates as (
+    select 
+        date,
+        account_id,
+        'modal_agent_increase' as source,
+        count(*) as tot_obs
+    from modal_agent_increase
+    group by all
+    having count(*) > 1
+),
+
+modal_agent_decrease_duplicates as (
+    select 
+        date,
+        account_id,
+        'modal_agent_decrease' as source,
+        count(*) as tot_obs
+    from modal_agent_decrease
+    group by all
+    having count(*) > 1
+),
+
+modal_billing_cycle_duplicates as (
+    select 
+        date,
+        account_id,
+        'modal_billing_cycle' as source,
+        count(*) as tot_obs
+    from modal_billing_cycle
+    group by all
+    having count(*) > 1
+),
+
+modal_see_all_plans_duplicates as (
+    select 
+        date,
+        account_id,
+        'modal_see_all_plans' as source,
+        count(*) as tot_obs
+    from modal_see_all_plans
+    group by all
+    having count(*) > 1
+),
+
+--- Joining all duplicates tables
+
+dups_join as (
+    select *
+    from prompt_load_duplicates
+    union all
+    select *
+    from modal_load_duplicates
+    union all
+    select *
+    from modal_dismiss_duplicates
+    union all
+    select *
+    from modal_buy_now_duplicates
+    union all
+    select *
+    from modal_agent_increase_duplicates
+    union all
+    select *
+    from modal_agent_decrease_duplicates
+    union all
+    select *
+    from modal_billing_cycle_duplicates
+    union all
+    select *
+    from modal_see_all_plans_duplicates
 )
+
+--- Exploring duplicates
+
+select *
+from modal_buy_now
+where 
+    account_id = 25485348
+    and date = '2025-07-08'::date
+
+
+
+
+select *
+from dups_join
+
+
+--- Counting total duplicates
+
+select 
+    source,
+    sum(tot_obs) as total_duplicates
+from dups_join
+group by source
+order by total_duplicates desc;
+
+
+
+
+
+
+
+
+----------------------------------------------------
+--- Funnel query
+
+--- Step 1: count interactions with each modal step
+with prompt_load as (
+    select
+        account_id,
+        trial_type,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
+        count(*) as total_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_scd2
+    group by all
+),
+
+modal_load as (
+    select
+        account_id,
+        offer_id,
+        plan_name,
+        preview_state,
+        source,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
+        count(*) as total_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+    group by all
+),
+
+modal_dismiss as (
+    select
+        account_id,
+        offer_id,
+        plan_name,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
+        count(*) as total_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_dismiss_offer_scd2
+    group by all
+),
+
+modal_buy_now as (
+    select
+        account_id,
+        agent_count,
+        billing_cycle,
+        offer_id,
+        plan,
+        plan_name,
+        product,
+        promo_code,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
+        count(*) as total_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2
+    group by all
+),
+
+modal_agent_increase as (
+    select
+        account_id,
+        agent_count,
+        offer_id,
+        plan_name,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
+        count(*) as total_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_agent_increase_scd2
+    group by all
+),
+
+modal_agent_decrease as (
+    select
+        account_id,
+        agent_count,
+        offer_id,
+        plan_name,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
+        count(*) as total_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_agent_decrease_scd2
+    group by all
+),
+
+modal_billing_cycle as (
+    select
+        account_id,
+        billing_cycle,
+        offer_id,
+        plan_name,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
+        count(*) as total_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_billing_cycle_change_scd2
+    group by all
+),
+
+modal_see_all_plans as (
+    select
+        account_id,
+        offer_id,
+        plan_name,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
+        count(*) as total_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2
+    group by all
+),
+
+--- Step 2: Join relevant events
+--- Decided to not use agent increase/decrease & billing cycle change events,
+--- since they have duplicates and require additional logic
+
+segment_events_all_tmp as (
+    select
+        modal_load.date as loaded_date,
+        modal_load.account_id,
+        modal_load.offer_id,
+        modal_load.plan_name,
+        modal_load.preview_state,
+        modal_load.source,
+        --- Fields relevant to buy now modal
+        modal_buy_now.agent_count as buy_now_agent_count,
+        modal_buy_now.billing_cycle as buy_now_billing_cycle,
+        modal_buy_now.offer_id as buy_now_offer_id,
+        modal_buy_now.plan as buy_now_plan,
+        modal_buy_now.plan_name as buy_now_plan_name,
+        modal_buy_now.product as buy_now_product,
+        modal_buy_now.promo_code as buy_now_promo_code,
+        --- Counts per each modal
+        prompt_load.total_count as total_count_prompt_load,
+        prompt_load.unique_count as unique_count_prompt_load,
+        modal_load.total_count as total_count_modal_loads,
+        modal_load.unique_count as unique_count_modal_loads,
+        modal_dismiss.total_count as total_count_modal_dismiss,
+        modal_dismiss.unique_count as unique_count_modal_dismiss,
+        modal_buy_now.total_count as total_count_modal_buy_now,
+        modal_buy_now.unique_count as unique_count_modal_buy_now,
+        modal_see_all_plans.total_count as total_count_modal_see_all_plans,
+        modal_see_all_plans.unique_count as unique_count_modal_see_all_plans
+    from modal_load
+    left join modal_dismiss
+        on modal_load.account_id = modal_dismiss.account_id
+        and modal_load.date = modal_dismiss.date
+        and modal_load.offer_id = modal_dismiss.offer_id
+        and modal_load.plan_name = modal_dismiss.plan_name
+    left join modal_buy_now
+        on modal_load.account_id = modal_buy_now.account_id
+        and modal_load.date = modal_buy_now.date
+        and modal_load.offer_id = modal_buy_now.offer_id
+        and modal_load.plan_name = modal_buy_now.plan_name
+    left join prompt_load
+        on modal_load.account_id = prompt_load.account_id
+        and modal_load.date = prompt_load.date
+    left join modal_see_all_plans
+        on modal_load.account_id = modal_see_all_plans.account_id
+        and modal_load.date = modal_see_all_plans.date
+        and modal_load.offer_id = modal_see_all_plans.offer_id
+        and modal_load.plan_name = modal_see_all_plans.plan_name
+),
+
+--- Step 3: Join win date data
+
+sub_term as (
+    select distinct
+        finance.service_date,
+        snapshot.instance_account_id,
+        finance.subscription_term_start_date,
+        finance.subscription_term_end_date
+    from foundational.finance.fact_recurring_revenue_daily_snapshot_enriched as finance
+    inner join foundational.customer.entity_mapping_daily_snapshot as snapshot
+        on finance.billing_account_id = snapshot.billing_account_id
+        and finance.service_date = snapshot.source_snapshot_date
+    where finance.service_date >= '2025-06-01'
+),
+
+wins as (
+    select 
+        trial_accounts.instance_account_id,
+        trial_accounts.win_date,
+        trial_accounts.core_base_plan_at_win,
+        datediff(day, sub_term_.subscription_term_start_date::date, sub_term_.subscription_term_end_date::date) as subscription_term_days,
+        case 
+            when subscription_term_days >= 0 and subscription_term_days <= 40 then 'monthly'
+            when subscription_term_days >= 360 and subscription_term_days <= 370 then 'annually'
+            else 'other'
+        end as billing_cycle,
+        trial_accounts.instance_account_arr_usd_at_win
+    from presentation.growth_analytics.trial_accounts trial_accounts 
+    left join sub_term sub_term_
+        on trial_accounts.instance_account_id = sub_term_.instance_account_id
+        and trial_accounts.win_date = sub_term_.service_date
+    where 
+        trial_accounts.win_date is not null
+        and trial_accounts.sales_model_at_win <> 'Assisted'
+        and trial_accounts.is_direct_buy = FALSE  
+        and trial_accounts.win_date >= '2025-06-01'
+),
+
+segment_events_all as (
+    select
+        segment.*,
+        wins.win_date,
+        wins.instance_account_arr_usd_at_win,
+        datediff(day, segment.loaded_date::date, wins.win_date::date) as days_to_win,
+        case when wins.win_date is not null then 1 else null end as is_won_all,
+        case when wins.win_date is not null then segment.account_id else null end as is_won_unique,
+        wins.core_base_plan_at_win,
+        wins.subscription_term_days,
+        wins.billing_cycle
+    from segment_events_all_tmp segment
+    left join wins
+        on segment.account_id = wins.instance_account_id
+)
+
+select *
+from segment_events_all
+where loaded_date = '2025-07-21'::date
+
+--- Validate results
+
+
+select 
+    billing_cycle,
+    count(*) as total_obs,
+    count(distinct instance_account_id) as unique_accounts
+from wins
+group by billing_cycle
+
+select 
+    instance_account_id,
+    count(*) as total_obs
+from wins
+group by 1
+having count(*) > 1
+limit 10
+
+
+
+select 
+    count(*) as total_count,
+    count(distinct account_id) as unique_count,
+    sum(case when offer_id is null then 1 end) as nulls_offers,
+    count(distinct case when offer_id is null then account_id end) as nulls_offers_unique
+from segment_events_all
+
+
+
+
+select *
+from segment_events_all
+limit 10;
+
+
+select
+    date_trunc('day', original_timestamp) as date,
+    count(*) as tot_obs,
+    count(distinct account_id) as tot_accounts
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+group by 1
+order by 1;
+
+
+select
+    date_trunc('day', original_timestamp) as date,
+    count(distinct account_id) as tot_accounts
+from cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2
+group by 1
+order by 1;
+
+
+
+select
+    date_trunc('day', original_timestamp) as date,
+    count(distinct account_id) as tot_accounts
+from cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2
+group by 1
+order by 1;
+
+
+
+
+
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where account_id = 25535459
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2
+where account_id = 25535459
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_scd2
+where account_id = 25535459
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 select 
     date,
@@ -271,10 +745,66 @@ order by date;
 
 
 
-select distinct SOURCE
+with modal_buy_now as (
+    select
+        account_id,
+        agent_count,
+        billing_cycle,
+        offer_id,
+        plan,
+        plan_name,
+        product,
+        promo_code,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
+        count(*) as total_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2
+    group by all
+)
+
+
+select 
+    date,
+    account_id,
+    count(*) tot_obs
+from modal_buy_now
+group by all
+having count(*) > 1
+limit 10
+
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2
+where account_id = 25479660
+and date_trunc('day', original_timestamp) = '2025-07-18'::date
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2
+where account_id = 25479660
+and date_trunc('day', original_timestamp) = '2025-07-18'::date
+
+
+
+select *
+from CLEANSED.SEGMENT_BILLING.SEGMENT_BILLING_PAYMENT_LOADED_SCD2
+where account_id = 25479660
+and date_trunc('day', original_timestamp) = '2025-07-18'::date
+
+
+
+
+select distinct source
 from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
 
 
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2
+limit 10
 
 
 
@@ -380,6 +910,80 @@ count(distinct account_id) tot_accounts,
 from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
 group by 1
 order by 1
+
+
+
+
+
+-----------------------------------------
+--- Checking win rate
+
+
+
+select *
+from presentation.growth_analytics.trial_accounts
+where 
+    win_date is not null
+    and win_date = '2025-07-20'
+    and sales_model_at_win <> 'Assisted'
+    and is_direct_buy = FALSE  
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where account_id = 25501076
+
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2
+where account_id = 25501076
+
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2
+where account_id = 25501076
+
+
+
+
+select 
+    offer_id,
+    count(*) as total_count
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+group by offer_id
+order by 2 desc
+
+
+
+
+-----------------------------------------
+--- Multiple plans
+
+
+
+select 
+    account_id,
+    count(distinct product) as product,
+    count(distinct plan_name) as plan_name,
+    count(distinct plan) as plan
+from cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2
+group by 1
+order by 4 desc
+limit 10
+
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where account_id = 25432342
+
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2
+where account_id = 25432342
 
 
 
