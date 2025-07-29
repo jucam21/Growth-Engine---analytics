@@ -807,6 +807,15 @@ with accounts as (
                 then 1
             else 0
         end as trial_account_age_filter,
+        case
+            when
+                cast({{TRIAL_ACCOUNT_AGE_LESS_RULE}} as string) = 'all'
+                then 1
+            when
+                TRIAL_AGE <= {{TRIAL_ACCOUNT_AGE_LESS_RULE}}
+                then 1
+            else 0
+        end as trial_account_age_less_filter,
         -- Empoyee band
         case
             when
@@ -871,7 +880,7 @@ with accounts as (
         -- HC
         case
             when
-                {{HC_RULE}} = 'all'
+                cast({{HC_RULE}} as string) = 'all'
                 then 1
             when
                 cast(lower(IS_HELP_CENTER_CREATED) as string) = {{HC_RULE}}
@@ -881,7 +890,7 @@ with accounts as (
         -- Sample ticket solved
         case
             when
-                {{SAMPLE_TICKET_RULE}} = 'all'
+                cast({{SAMPLE_TICKET_RULE}} as string) = 'all'
                 then 1
             when
                 cast(lower(IS_SAMPLE_TICKET_SOLVED) as string) = {{SAMPLE_TICKET_RULE}}
@@ -891,7 +900,7 @@ with accounts as (
         -- External email connected
         case
             when
-                {{EXTERNAL_EMAIL_RULE}} = 'all'
+                cast({{EXTERNAL_EMAIL_RULE}} as string) = 'all'
                 then 1
             when
                 cast(lower(IS_EXTERNAL_EMAIL_CONNECTED) as string) = {{EXTERNAL_EMAIL_RULE}}
@@ -918,6 +927,7 @@ accounts_funnel as (
     from accounts
     where 
         trial_account_age_filter = 1
+        and trial_account_age_less_filter = 1
         and employee_filter = 1
         and region_filter = 1
         and hc_filter = 1
@@ -930,16 +940,17 @@ funnel as (
     select 
         count(*) tot_obs,
         sum(trial_account_age_filter) trial_account_age_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 then 1 else 0 end) employee_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 then 1 else 0 end) region_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 then 1 else 0 end) hc_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 then 1 else 0 end) sample_ticket_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 then 1 else 0 end) external_email_filter,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 and tickets_filter_all = 1 then 1 else 0 end) total_tickets_filter,
+        sum(case when trial_account_age_filter = 1 and trial_account_age_less_filter = 1 then 1 else 0 end) trial_account_age_less_filter,
+        sum(case when trial_account_age_filter = 1 and trial_account_age_less_filter = 1 and employee_filter = 1 then 1 else 0 end) employee_filter,
+        sum(case when trial_account_age_filter = 1 and trial_account_age_less_filter = 1 and employee_filter = 1 and region_filter = 1 then 1 else 0 end) region_filter,
+        sum(case when trial_account_age_filter = 1 and trial_account_age_less_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 then 1 else 0 end) hc_filter,
+        sum(case when trial_account_age_filter = 1 and trial_account_age_less_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 then 1 else 0 end) sample_ticket_filter,
+        sum(case when trial_account_age_filter = 1 and trial_account_age_less_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 then 1 else 0 end) external_email_filter,
+        sum(case when trial_account_age_filter = 1 and trial_account_age_less_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 and tickets_filter_all = 1 then 1 else 0 end) total_tickets_filter,
         -- Add ticket filters
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 and tickets_filter_all = 1 and tickets_filter_1 = 1 then 1 else 0 end) tickets_filter_1,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 and tickets_filter_all = 1 and tickets_filter_2 = 1 then 1 else 0 end) tickets_filter_2,
-        sum(case when trial_account_age_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 and tickets_filter_all = 1 and tickets_filter_3 = 1 then 1 else 0 end) tickets_filter_3,
+        sum(case when trial_account_age_filter = 1 and trial_account_age_less_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 and tickets_filter_all = 1 and tickets_filter_1 = 1 then 1 else 0 end) tickets_filter_1,
+        sum(case when trial_account_age_filter = 1 and trial_account_age_less_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 and tickets_filter_all = 1 and tickets_filter_2 = 1 then 1 else 0 end) tickets_filter_2,
+        sum(case when trial_account_age_filter = 1 and trial_account_age_less_filter = 1 and employee_filter = 1 and region_filter = 1 and hc_filter = 1 and sample_ticket_filter = 1 and external_email_filter = 1 and tickets_filter_all = 1 and tickets_filter_3 = 1 then 1 else 0 end) tickets_filter_3,
     from accounts
 )
 

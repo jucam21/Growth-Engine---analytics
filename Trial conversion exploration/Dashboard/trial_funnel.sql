@@ -147,7 +147,6 @@ cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2
 select
     trial_accounts.win_date,
     count(*) as total_wins,
-    count(distinct trial_accounts.instance_account_id) as unique_wins,
     sum(instance_account_arr_usd_at_win) as total_wins_arr
     from presentation.growth_analytics.trial_accounts trial_accounts 
     where 
