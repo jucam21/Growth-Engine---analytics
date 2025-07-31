@@ -432,6 +432,8 @@ order by total_obs desc
 
 
 
+
+
 select *
 from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
 where offer_id = '01JYH0M68BAKCX4ZVHVMM7Y34S'
