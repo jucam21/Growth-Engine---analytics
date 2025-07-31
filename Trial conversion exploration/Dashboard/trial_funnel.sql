@@ -420,6 +420,38 @@ and date_trunc('day', original_timestamp) = '2025-07-23'::date
 
 
 
+select 
+    offer_id, 
+    min(original_timestamp) min_timestamp,
+    max(original_timestamp) max_timestamp,
+    count(*) as total_obs
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where lower(offer_id) like '%01jy%'
+group by offer_id
+order by total_obs desc
+
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where offer_id = '01JYH0M68BAKCX4ZVHVMM7Y34S'
+
+
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_scd2
+where account_id = 25485341
+
+
+
+select 
+    max()
+
+select *
+from presentation.growth_analytics.trial_accounts
+where instance_account_id = 25485341
+
 
 ----------------------------------------------------
 --- Creating funnel and measuring if duplicates
