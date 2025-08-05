@@ -155,7 +155,7 @@ segment_events_all_tmp as (
     select
         modal_load.date as loaded_date,
         modal_load.account_id,
-        modal_load.offer_id,
+        case when modal_load.offer_id is null then 'No Offer' else modal_load.offer_id end as offer_id,
         modal_load.plan_name,
         modal_load.preview_state,
         modal_load.source,
@@ -350,6 +350,9 @@ where account_id in (25550478, 25489303)
 select *
 from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
 where account_id in (25550478, 25489303)
+
+
+
 
 
 
@@ -687,6 +690,58 @@ where
     and sales_motion = 'Online'
 group by all
 order by 1,2
+
+
+
+
+--- Checking account id to CRM mapping from modal loads
+--- Using onlywins, since for not all accounts will be found in the table
+
+with accounts as (
+    select 
+        trial_accounts.instance_account_id,
+        trial_accounts.instance_account_created_date,
+        trial_accounts.win_date,
+        trial_accounts.instance_account_arr_usd_at_win
+    from presentation.growth_analytics.trial_accounts trial_accounts 
+    where 
+        trial_accounts.win_date is not null 
+        and trial_accounts.sales_model_at_win <> 'Assisted'
+        and trial_accounts.is_direct_buy = FALSE
+)
+
+select 
+    win_date,
+    count(*) as total_count,
+    sum(instance_account_arr_usd_at_win) as total_arr
+from accounts
+where win_date >= '2025-07-01'
+group by all
+order by win_date
+
+select 
+    accounts.account_id,
+    count(*)
+inner join foundational.customer.entity_mapping_daily_snapshot as snapshot
+        on finance.billing_account_id = snapshot.billing_account_id
+        and finance.service_date = snapshot.source_snapshot_date
+
+
+
+
+select *
+from foundational.customer.entity_mapping_daily_snapshot --._bcv
+where instance_account_id = 25500148
+limit 10
+
+
+
+
+
+select *
+from foundational.customer.entity_mapping_daily_snapshot --._bcv
+where instance_account_id = 25500148
+limit 10
 
 
 
