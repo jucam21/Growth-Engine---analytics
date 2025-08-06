@@ -1,6 +1,7 @@
 --- Check previous cart experiment events
 
 
+
 -------------------------------------
 ---- *** UNRELATED: cancel reason ***
 
@@ -77,6 +78,88 @@ group by 1
 )
 
 
+select distinct source 
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+
+
+select distinct
+    standard_experiment_account_event_name,
+    STANDARD_EXPERIMENT_NAME,
+    count(*) as total_accounts,
+    min(convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)) as first_event_time,
+    max(convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)) as last_event_time
+from propagated_cleansed.pda.base_standard_experiment_account_events
+where 
+
+-- # 0) Entrance via a deep link / trial welcome / Lean more / Admin Center
+standard_experiment_account_event_name like 'view_%compare_plans%' or
+standard_experiment_account_event_name like 'click_compare_plans' or
+standard_experiment_account_event_name like 'click_buy_your_trial' or
+standard_experiment_account_event_name like 'click_buy_zendesk' or
+standard_experiment_account_event_name like 'enter_from_deep_link' or
+standard_experiment_account_event_name like 'enter_from_trial_welcome_screen' or
+standard_experiment_account_event_name like 'click_learn_more_see_all_plans' or
+standard_experiment_account_event_name like 'click_learn_more_get_plan_recommendation' or
+standard_experiment_account_event_name like 'click_purchase_admin_center' or
+
+-- Treatment
+-- # 1) View Compare Plans or Buy Your Trial
+standard_experiment_account_event_name like 'view_%compare_plans%' or
+standard_experiment_account_event_name like 'view_suite_plan_compare_plans' or
+standard_experiment_account_event_name like 'view_support_plan_compare_plans' or
+standard_experiment_account_event_name like '%buy_your_trial%' or
+standard_experiment_account_event_name like 'click_see_all_plans_buy_your_trial_payment_page' or
+standard_experiment_account_event_name like 'view_support_plan' or
+standard_experiment_account_event_name like 'view_suite_plan' or
+standard_experiment_account_event_name like 'view_support_plan_compare_plans' or
+standard_experiment_account_event_name like 'view_suite_plan_compare_plans' or
+standard_experiment_account_event_name like 'view_presets%' or
+standard_experiment_account_event_name like 'click_preset%' or
+standard_experiment_account_event_name like 'click_preset_all_plans' or
+standard_experiment_account_event_name like 'click_preset_quiz' or
+standard_experiment_account_event_name like 'click_preset_trial_plan' or
+standard_experiment_account_event_name like 'click_preset_suite' or
+standard_experiment_account_event_name like 'click_preset_support' or
+-- 2.1) Additional steps in Treatment: all plans preset
+standard_experiment_account_event_name like 'view_suite_plan' or
+standard_experiment_account_event_name like 'view_support_plan' or
+standard_experiment_account_event_name like 'view_support_customize' or
+-- 3) View Payment
+standard_experiment_account_event_name like 'view_%payment%' or
+standard_experiment_account_event_name = 'view_support_customize' or
+standard_experiment_account_event_name like 'view_payment_buy_your_trial' or
+standard_experiment_account_event_name like 'view_payment_compare_plans' or
+standard_experiment_account_event_name like 'view_payment_quiz%' or
+standard_experiment_account_event_name like 'view_payment_trial_plan%' or
+standard_experiment_account_event_name like 'view_payment_all_plans%' or
+-- Control
+standard_experiment_account_event_name like 'view_support_customize' or
+-- 4) Complete purchase
+standard_experiment_account_event_name like 'complete_purchase%' or
+standard_experiment_account_event_name like 'complete_purchase_buy_your_trial' or
+standard_experiment_account_event_name like 'complete_purchase_compare_plans' or
+standard_experiment_account_event_name like 'complete_purchase_quiz' or
+standard_experiment_account_event_name like 'complete_purchase_trial_plan' or
+standard_experiment_account_event_name like 'complete_purchase_all_plans' or
+-- 5) Payment Successful
+standard_experiment_account_event_name like 'payment_successful%' or
+standard_experiment_account_event_name like 'payment_successful_buy_your_trial' or
+standard_experiment_account_event_name like 'payment_successful_compare_plans' or
+standard_experiment_account_event_name like 'payment_successful_quiz' or
+standard_experiment_account_event_name like 'payment_successful_trial_plan' or
+standard_experiment_account_event_name like 'payment_successful_all_plans'
+
+group by 1,2
+order by 1,2
+
+
+
+
+
+--- Joining events & event names
+
+
+
 
 select distinct
     standard_experiment_account_event_name,
@@ -146,6 +229,16 @@ standard_experiment_account_event_name like 'payment_successful_all_plans'
 
 group by 1
 order by 2 desc
+
+
+
+
+
+
+
+
+
+
 
 
 

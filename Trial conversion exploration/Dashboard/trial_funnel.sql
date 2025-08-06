@@ -694,6 +694,9 @@ order by 1,2
 
 
 
+
+
+
 --- Checking account id to CRM mapping from modal loads
 --- Using onlywins, since for not all accounts will be found in the table
 
@@ -710,6 +713,56 @@ with accounts as (
         and trial_accounts.is_direct_buy = FALSE
 )
 
+
+select 
+    accounts_.instance_account_id,
+    mapping.crm_account_id,
+    accounts_.win_date,
+    accounts_.instance_account_arr_usd_at_win
+from accounts accounts_
+left join foundational.customer.entity_mapping_daily_snapshot as mapping
+    on accounts_.instance_account_id = mapping.instance_account_id
+    and accounts_.win_date = mapping.source_snapshot_date
+where 
+    mapping.crm_account_id = '0016R000036b0nmQAA'
+    and accounts_.win_date >= '2025-05-01'
+
+
+
+select 
+    mapping.crm_account_id,
+    count(*) as total_count,
+    count(distinct accounts_.instance_account_id) as unique_crm_accounts
+from accounts accounts_
+left join foundational.customer.entity_mapping_daily_snapshot as mapping
+    on accounts_.instance_account_id = mapping.instance_account_id
+    and accounts_.win_date = mapping.source_snapshot_date
+where accounts_.win_date >= '2025-05-01'
+group by 1
+order by 3 desc
+limit 10
+
+
+select
+    count(*) as total_count,
+    count(distinct accounts_.instance_account_id) as unique_accounts,
+    count(distinct mapping.crm_account_id) as unique_crm_accounts,
+    count(case when mapping.crm_account_id is null then 1 else null end) as null_crms
+from accounts accounts_
+left join foundational.customer.entity_mapping_daily_snapshot as mapping
+    on accounts_.instance_account_id = mapping.instance_account_id
+    and accounts_.win_date = mapping.source_snapshot_date
+where accounts_.win_date >= '2025-05-01'
+
+
+
+
+
+
+
+
+
+
 select 
     win_date,
     count(*) as total_count,
@@ -719,29 +772,282 @@ where win_date >= '2025-07-01'
 group by all
 order by win_date
 
+
+
+
+
+
+select *
+from foundational.customer.entity_mapping_daily_snapshot --._bcv
+where instance_account_id = 25500148
+limit 10
+
+
+
+
+
+select *
+from foundational.customer.entity_mapping_daily_snapshot --._bcv
+where instance_account_id = 25500148
+limit 10
+
+
+
+
+
+
+select *
+from functional.finance.sfa_crm_bookings_current
+where 
+    crm_account_id = '0016R000036b0nmQAA'
+    --and pro_forma_signature_date >= '2025-05-01'
+order by pro_forma_signature_date desc
+
+
+
+
+
+
+
 select 
-    accounts.account_id,
-    count(*)
-inner join foundational.customer.entity_mapping_daily_snapshot as snapshot
-        on finance.billing_account_id = snapshot.billing_account_id
-        and finance.service_date = snapshot.source_snapshot_date
+    date_trunc('month', pro_forma_signature_date) pro_forma_signature_date,
+    count(*) total_obs,
+    count(distinct crm_account_id) crm_account_id,
+    sum(total_booking_arr_usd) total_booking_arr_usd
+from functional.finance.sfa_crm_bookings_current
+where
+    pro_forma_market_segment_at_close_date = 'Digital'
+    and sales_motion = 'Online'
+    and type = 'New Business'
+    and pro_forma_signature_date >= '2025-03-01'
+group by 1
+order by 1
 
+
+
+
+
+
+
+select 
+    crm_account_id,
+    count(*) total_obs,
+    count(distinct crm_account_id) crm_account_id,
+    sum(total_booking_arr_usd) total_booking_arr_usd
+from functional.finance.sfa_crm_bookings_current
+where
+    pro_forma_market_segment_at_close_date = 'Digital'
+    and sales_motion = 'Online'
+    and type = 'New Business'
+    and pro_forma_signature_date >= '2025-03-01'
+group by 1
+order by 2 desc
+limit 10
 
 
 
 select *
-from foundational.customer.entity_mapping_daily_snapshot --._bcv
-where instance_account_id = 25500148
+from functional.finance.sfa_crm_bookings_current
+where
+    pro_forma_market_segment_at_close_date = 'Digital'
+    and crm_account_id = '001PC00000RsL9aYAF'
+
+
+
+
+
+--- Checking bookings vs instance accounts
+
+with bookings as (
+    select 
+        date_trunc('month', pro_forma_signature_date) month_closed,
+        crm_account_id,
+        sum(total_booking_arr_usd) as total_booking_arr_usd
+    from functional.finance.sfa_crm_bookings_current
+    where
+        pro_forma_market_segment_at_close_date = 'Digital'
+        and sales_motion = 'Online'
+        and type = 'New Business'
+        and pro_forma_signature_date >= '2025-05-01'
+    group by 1,2
+),
+
+mapping as (
+    select
+        bookings_.*,
+        mapping.instance_account_id
+    from bookings bookings_
+    left join foundational.customer.entity_mapping_daily_snapshot mapping
+        on bookings_.crm_account_id = mapping.crm_account_id
+        and bookings_.month_closed = mapping.source_snapshot_date
+)
+
+
+select 
+    month_closed,
+    crm_account_id,
+    count(*) as total_obs,
+    count(distinct instance_account_id) as instance_account_id
+from mapping
+group by 1, 2
+order by 3 desc
 limit 10
 
 
 
 
+select *
+from bookings
+where crm_account_id = '0018000000vWQTcAAO'
+
+
+
 
 select *
-from foundational.customer.entity_mapping_daily_snapshot --._bcv
-where instance_account_id = 25500148
-limit 10
+from mapping
+where crm_account_id = '0018000000vWQTcAAO'
+
+
+
+
+
+
+
+
+--- Adjusting query to use bookings
+
+--- All trial accounts
+
+with bookings as (
+    select 
+        --date_trunc('month', pro_forma_signature_date) month_closed,
+        pro_forma_signature_date month_closed,
+        crm_account_id,
+        crm_opportunity_id,
+        total_booking_arr_usd
+        --sum(total_booking_arr_usd) as total_booking_arr_usd
+    from functional.finance.sfa_crm_bookings_current
+    where
+        pro_forma_market_segment_at_close_date = 'Digital'
+        and sales_motion = 'Online'
+        and type = 'New Business'
+        --and pro_forma_signature_date >= '2025-05-01'
+    --group by 1,2
+),
+
+--- User ever clicked on "buy now" or "see all plans" modals in the past
+modal_buy_now as (
+    select
+        mapping.crm_account_id,
+        max(date(original_timestamp)) as max_date
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2 buy_now
+    --- Remove testing accounts
+    inner join presentation.growth_analytics.trial_accounts trial_accounts  
+        on 
+            trial_accounts.instance_account_id = buy_now.account_id
+            and date(buy_now.original_timestamp) <= trial_accounts.win_date
+    --- Join CRM
+    left join foundational.customer.entity_mapping_daily_snapshot mapping
+        on 
+            buy_now.account_id = mapping.instance_account_id
+            and date(buy_now.original_timestamp) = mapping.source_snapshot_date
+    group by all
+),
+
+modal_see_all_plans as (
+    select
+        mapping.crm_account_id,
+        max(date(original_timestamp)) as max_date
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2 see_all_plans
+    --- Remove testing accounts
+    inner join presentation.growth_analytics.trial_accounts trial_accounts
+        on
+            trial_accounts.instance_account_id = see_all_plans.account_id
+            and date(see_all_plans.original_timestamp) <= trial_accounts.win_date
+    --- Join CRM
+    left join foundational.customer.entity_mapping_daily_snapshot mapping
+        on 
+            see_all_plans.account_id = mapping.instance_account_id
+            and date(see_all_plans.original_timestamp) = mapping.source_snapshot_date
+    group by all
+)
+
+--- Testing counts
+
+select
+    date_trunc('month', month_closed) as month_closed,
+    count(*) as total_obs,
+    count(distinct bookings_.crm_account_id) as unique_crm_accounts,
+    sum(case when modal_buy_now_.crm_account_id is not null then 1 end) as buy_now_clicked,
+    sum(case when modal_see_all_plans_.crm_account_id is not null then 1 end) as see_all_plans_clicked,
+    buy_now_clicked + see_all_plans_clicked as total_cta_clicked,
+    sum(total_booking_arr_usd) as total_booking_arr_usd
+from bookings bookings_
+left join modal_buy_now modal_buy_now_
+    on bookings_.crm_account_id = modal_buy_now_.crm_account_id
+left join modal_see_all_plans modal_see_all_plans_
+    on bookings_.crm_account_id = modal_see_all_plans_.crm_account_id
+where
+    bookings_.month_closed >= '2025-05-01'
+group by 1
+order by 1 desc
+
+
+
+
+
+
+
+
+
+
+--- User fired billing cart loaded in the last 15 days
+billing_cart_loaded as (
+    select
+        account_id,
+        cart_screen,
+        cart_step,
+        cart_version,
+        origin,
+        cart_type,
+        date(original_timestamp) as max_date
+    from 
+        cleansed.segment_billing.segment_billing_cart_loaded_scd2 billing_cart_loaded
+    inner join accounts 
+        on 
+            accounts.instance_account_id = billing_cart_loaded.account_id
+            -- 15 day timeframe last 15 days before win date
+            and date(billing_cart_loaded.original_timestamp) <= accounts.win_date
+            and date(billing_cart_loaded.original_timestamp) >= dateadd('day', -15, accounts.win_date)
+    where paid_customer = FALSE
+    qualify row_number() over (partition by account_id order by original_timestamp desc) = 1
+)
+
+select 
+    accounts_.*,
+    case 
+        when modal_buy_now_.account_id is not null or modal_see_all_plans_.account_id is not null 
+        then 'buy_now/see_all_plans_clicked' else 'no_cta_clicked'
+    end as modal_clicked,
+    modal_buy_now_.max_date as max_date_modal_buy_now,
+    modal_see_all_plans_.max_date as max_date_modal_see_all_plans,
+    billing_cart_loaded_.* exclude (account_id),
+        case when billing_cart_loaded_.account_id is null then 1 else 0 end as cart_null
+from accounts accounts_
+left join modal_buy_now modal_buy_now_ 
+    on accounts_.instance_account_id = modal_buy_now_.account_id
+left join modal_see_all_plans modal_see_all_plans_ 
+    on accounts_.instance_account_id = modal_see_all_plans_.account_id
+left join billing_cart_loaded billing_cart_loaded_ 
+    on accounts_.instance_account_id = billing_cart_loaded_.account_id
+where 
+    accounts_.is_won = 1
+    --- Selecting only wins from Jul29
+    and win_date = '2025-07-29'
+order by win_date
+
 
 
 
