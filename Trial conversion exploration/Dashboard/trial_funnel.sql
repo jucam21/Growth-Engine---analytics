@@ -362,19 +362,6 @@ where account_id in (25550478, 25489303)
 --- 1.1: Uncohorted funnel - wins
 
 
-
-
---- 
-
-
-
-
-
-
-
-
-
-
 --- Adjusted wins to measure if a user ever clicked on "buy now" or "see all plans" modals
 with accounts as (
     select 
@@ -914,14 +901,17 @@ where crm_account_id = '0018000000vWQTcAAO'
 
 
 
+----------------------------------------------------
+--- 1.1.1: Uncohorted funnel - bookings
+
+
 --- Adjusting query to use bookings
 
 --- All trial accounts
 
 with bookings as (
     select 
-        --date_trunc('month', pro_forma_signature_date) month_closed,
-        pro_forma_signature_date month_closed,
+        pro_forma_signature_date,
         crm_account_id,
         crm_opportunity_id,
         total_booking_arr_usd
@@ -972,12 +962,109 @@ modal_see_all_plans as (
             see_all_plans.account_id = mapping.instance_account_id
             and date(see_all_plans.original_timestamp) = mapping.source_snapshot_date
     group by all
+),
+
+bookings_daily as (
+    select
+        bookings_.pro_forma_signature_date,
+        count(*) as total_wins,
+        count(distinct bookings_.crm_account_id) as unique_crm_wins,
+        sum(bookings_.total_booking_arr_usd) as total_booking_arr_usd,
+        
+        --- Total wins count
+        --- At the opportunity level
+        count(case
+            when
+                modal_buy_now_.crm_account_id is not null
+                and modal_see_all_plans_.crm_account_id is null
+                then bookings_.crm_account_id else null
+        end) as total_bookings_just_buy_now,
+        count(case
+            when
+                modal_buy_now_.crm_account_id is null
+                and modal_see_all_plans_.crm_account_id is not null
+                then bookings_.crm_account_id else null
+        end) as total_bookings_just_see_all_plans,
+        count(case
+            when
+                modal_buy_now_.crm_account_id is not null
+                and modal_see_all_plans_.crm_account_id is not null
+                then bookings_.crm_account_id else null
+        end) as total_bookings_both,
+        count(case
+            when
+                modal_buy_now_.crm_account_id is null
+                and modal_see_all_plans_.crm_account_id is null
+                then bookings_.crm_account_id else null
+        end) as total_bookings_none,
+
+        --- Bookings ARR
+        sum(case
+            when
+                modal_buy_now_.crm_account_id is not null
+                and modal_see_all_plans_.crm_account_id is null
+                then bookings_.total_booking_arr_usd else null
+        end) as total_bookings_just_buy_now_arr,
+        sum(case
+            when
+                modal_buy_now_.crm_account_id is null
+                and modal_see_all_plans_.crm_account_id is not null
+                then bookings_.total_booking_arr_usd else null
+        end) as total_bookings_just_see_all_plans_arr,
+        sum(case
+            when
+                modal_buy_now_.crm_account_id is not null
+                and modal_see_all_plans_.crm_account_id is not null
+                then bookings_.total_booking_arr_usd else null
+        end) as total_bookings_both_arr,
+        sum(case
+            when
+                modal_buy_now_.crm_account_id is null
+                and modal_see_all_plans_.crm_account_id is null
+                then bookings_.total_booking_arr_usd else null
+        end) as total_bookings_none_arr
+        
+    from bookings bookings_
+    left join modal_buy_now modal_buy_now_
+        on bookings_.crm_account_id = modal_buy_now_.crm_account_id
+    left join modal_see_all_plans modal_see_all_plans_
+        on bookings_.crm_account_id = modal_see_all_plans_.crm_account_id
+    where
+    bookings_.pro_forma_signature_date >= '2025-05-01'
+    group by 1
 )
 
---- Testing counts
+--- Validate results
 
 select
-    date_trunc('month', month_closed) as month_closed,
+    pro_forma_signature_date,
+    sum(total_wins) as total_wins,
+    sum(unique_crm_wins) as unique_crm_wins,
+    sum(total_bookings_just_buy_now) as total_bookings_just_buy_now,
+    sum(total_bookings_just_see_all_plans) as total_bookings_just_see_all_plans,
+    sum(total_bookings_both) as total_bookings_both,
+    sum(total_bookings_none) as total_bookings_none
+from bookings_daily
+group by 1
+order by 1 desc
+
+
+
+
+
+
+
+
+
+
+--- Testing counts
+--- Numbers match online dashboard
+--- https://prod-useast-a.online.tableau.com/#/site/zendesktableau/views/OnlineBusinessDashboardZDP/TotalBookings?:iid=1
+
+select
+    --date_trunc('month', month_closed) as month_closed,
+
+    month_closed,
     count(*) as total_obs,
     count(distinct bookings_.crm_account_id) as unique_crm_accounts,
     sum(case when modal_buy_now_.crm_account_id is not null then 1 end) as buy_now_clicked,
@@ -993,6 +1080,164 @@ where
     bookings_.month_closed >= '2025-05-01'
 group by 1
 order by 1 desc
+
+
+
+
+
+
+----------------------------------------------------
+--- 1.2: Uncohorted funnel - payment page visits
+
+--- Adjusting query to use payment page visits
+
+--- Counting all payment page visits
+
+select 
+    date(original_timestamp) date_loaded,
+    count(*) as total_count,
+    count(distinct account_id) as unique_accounts
+from cleansed.segment_billing.segment_billing_payment_loaded_scd2 payment_loaded
+where paid_customer = FALSE
+group by 1
+order by 1 desc
+
+
+
+
+
+--- Payment page funnel
+with payment_loaded as (
+    select
+        date(original_timestamp) as date_loaded,
+        account_id
+    from cleansed.segment_billing.segment_billing_payment_loaded_scd2 payment_loaded
+    where
+        date(original_timestamp) >= '2025-05-01'
+),
+
+--- User ever clicked on "buy now" or "see all plans" modals in the past
+modal_buy_now as (
+    select
+        buy_now.account_id,
+        max(date(buy_now.original_timestamp)) as max_date
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2 buy_now
+    inner join presentation.growth_analytics.trial_accounts accounts 
+        on 
+            accounts.instance_account_id = buy_now.account_id
+    inner join payment_loaded 
+        on 
+            payment_loaded.account_id = buy_now.account_id
+            and date(buy_now.original_timestamp) <= payment_loaded.date_loaded
+    group by all
+),
+
+modal_see_all_plans as (
+    select
+        see_all_plans.account_id,
+        max(date(see_all_plans.original_timestamp)) as max_date
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2 see_all_plans
+    inner join presentation.growth_analytics.trial_accounts accounts 
+        on 
+            accounts.instance_account_id = see_all_plans.account_id
+    inner join payment_loaded 
+        on 
+            payment_loaded.account_id = see_all_plans.account_id
+            and date(see_all_plans.original_timestamp) <= payment_loaded.date_loaded
+    group by all
+),
+
+--- Join payment page visits & segment funnel
+payment_visits_daily as (
+    select
+        payment_loaded_.date_loaded,
+        count(*) as total_payment_visits,
+        count(distinct payment_loaded_.account_id) as unique_payment_visits,
+        
+        --- Total visits count
+        count(case 
+            when 
+                modal_buy_now_.account_id is not null 
+                and modal_see_all_plans_.account_id is null 
+                then payment_loaded_.account_id else null 
+        end) as total_payment_visits_just_buy_now,
+        count(case 
+            when 
+                modal_buy_now_.account_id is null 
+                and modal_see_all_plans_.account_id is not null 
+                then payment_loaded_.account_id else null 
+        end) as total_payment_visits_just_see_all_plans,
+        count(case 
+            when 
+                modal_buy_now_.account_id is not null 
+                and modal_see_all_plans_.account_id is not null 
+                then payment_loaded_.account_id else null 
+        end) as total_payment_visits_both,
+        count(case 
+            when 
+                modal_buy_now_.account_id is null 
+                and modal_see_all_plans_.account_id is null 
+                then payment_loaded_.account_id else null 
+        end) as total_payment_visits_none,
+        
+        --- Unique visits count
+        count(distinct case 
+            when 
+                modal_buy_now_.account_id is not null 
+                and modal_see_all_plans_.account_id is null 
+                then payment_loaded_.account_id else null 
+        end) as unique_payment_visits_just_buy_now,
+        count(distinct case 
+            when 
+                modal_buy_now_.account_id is null 
+                and modal_see_all_plans_.account_id is not null 
+                then payment_loaded_.account_id else null 
+        end) as unique_payment_visits_just_see_all_plans,
+        count(distinct case 
+            when 
+                modal_buy_now_.account_id is not null 
+                and modal_see_all_plans_.account_id is not null 
+                then payment_loaded_.account_id else null 
+        end) as unique_payment_visits_both,
+        count(distinct case 
+            when 
+                modal_buy_now_.account_id is null 
+                and modal_see_all_plans_.account_id is null 
+                then payment_loaded_.account_id else null 
+        end) as unique_payment_visits_none
+        
+    from payment_loaded payment_loaded_
+    left join modal_buy_now modal_buy_now_ 
+        on payment_loaded_.account_id = modal_buy_now_.account_id
+    left join modal_see_all_plans modal_see_all_plans_ 
+        on payment_loaded_.account_id = modal_see_all_plans_.account_id
+    group by 1
+)
+
+--- Validate results
+
+select
+    date_loaded,
+    --- Total counts
+    sum(total_payment_visits) as total_payment_visits,
+    sum(total_payment_visits_just_buy_now) as total_payment_visits_just_buy_now,
+    sum(total_payment_visits_just_see_all_plans) as total_payment_visits_just_see_all_plans,
+    sum(total_payment_visits_both) as total_payment_visits_both,
+    sum(total_payment_visits_none) as total_payment_visits_none,
+
+    --- Unique counts
+    sum(unique_payment_visits) as unique_payment_visits,
+    sum(unique_payment_visits_just_buy_now) as unique_payment_visits_just_buy_now,
+    sum(unique_payment_visits_just_see_all_plans) as unique_payment_visits_just_see_all_plans,
+    sum(unique_payment_visits_both) as unique_payment_visits_both,
+    sum(unique_payment_visits_none) as unique_payment_visits_none
+from payment_visits_daily
+group by date_loaded
+order by date_loaded desc;
+
+
 
 
 
@@ -1047,6 +1292,772 @@ where
     --- Selecting only wins from Jul29
     and win_date = '2025-07-29'
 order by win_date
+
+
+
+
+
+
+
+
+
+
+
+
+---------------------------------------------
+--- 2.0 Cohorted funnel
+
+---- Auto-trigger loads do not happen within the first 2 days after account creation
+
+
+--- Minimum 3 days before showing auto pop up
+select 
+    date(original_timestamp) as date_loaded,
+    count(*) as total_count,
+    count(distinct account_id) as unique_accounts,
+    --- Max & min date diff between account creation and auto-trigger load
+    max(datediff('day', date(instance_account_created_date), date(original_timestamp))) as max_date_diff,
+    min(datediff('day', date(instance_account_created_date), date(original_timestamp))) as min_date_diff
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 loads
+inner join presentation.growth_analytics.trial_accounts trial_accounts
+    on 
+        loads.account_id = trial_accounts.instance_account_id
+where loads.source = 'auto_trigger'
+group by 1
+order by 1 desc
+
+
+
+
+
+
+
+--- Main query
+
+with accounts as (
+    select 
+        trial_accounts.instance_account_id,
+        trial_accounts.instance_account_created_date,
+        --- Verified date next 2 days after account creation
+        case 
+            when
+                trial_accounts.first_verified_date is not null
+                and trial_accounts.first_verified_date <= dateadd('day', 2, date(trial_accounts.instance_account_created_date)) 
+            then 1 else null
+        end as verified_flag,
+        --- Wins next 2 days after account creation
+        case 
+            when 
+                trial_accounts.win_date is not null 
+                and trial_accounts.sales_model_at_win <> 'Assisted'
+                and trial_accounts.is_direct_buy = FALSE  
+                and trial_accounts.win_date <= dateadd('day', 2, date(trial_accounts.instance_account_created_date)) 
+            then 1 else null
+        end as win_flag,
+        case 
+            when 
+                trial_accounts.win_date is not null 
+                and trial_accounts.sales_model_at_win <> 'Assisted'
+                and trial_accounts.is_direct_buy = FALSE  
+                and trial_accounts.win_date <= dateadd('day', 2, date(trial_accounts.instance_account_created_date)) 
+            then instance_account_arr_usd_at_win else null
+        end as win_flag_arr,
+    from presentation.growth_analytics.trial_accounts trial_accounts 
+    where 
+        trial_accounts.instance_account_created_date >= '2025-07-17'
+),
+
+--------------
+--- Actions:
+--- Will measure all actions performed in the next 2 days after account creation
+
+
+--- Segment funnel
+
+prompt_load as (
+    select
+        prompt_click.account_id,
+        count(*) as total_events,
+        count(distinct prompt_click.account_id) as unique_events
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_scd2 prompt_click
+    inner join accounts trial_accounts
+        on 
+            prompt_click.account_id = trial_accounts.instance_account_id
+            and prompt_click.original_timestamp >= trial_accounts.instance_account_created_date
+            and prompt_click.original_timestamp <= dateadd('day', 2, date(trial_accounts.instance_account_created_date))
+    group by all
+),
+
+modal_load as (
+    select
+        load.account_id,
+        count(*) as total_events,
+        count(distinct load.account_id) as unique_events,
+        -- CTA
+        sum(case when load.source = 'CTA' then 1 else 0 end) as total_cta_count,
+        count(distinct case when load.source = 'CTA' then load.account_id else null end) as unique_cta_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 load
+    inner join accounts trial_accounts
+        on 
+            load.account_id = trial_accounts.instance_account_id
+            and load.original_timestamp >= trial_accounts.instance_account_created_date
+            and load.original_timestamp <= dateadd('day', 2, date(trial_accounts.instance_account_created_date))
+    group by all
+),
+
+--- Separated auto trigger loads to change timeframe (5 days)
+modal_load_auto_trigger as (
+    select
+        load.account_id,
+        count(*) as total_auto_trigger_count,
+        count(distinct load.account_id) as unique_auto_trigger_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 load
+    inner join accounts trial_accounts
+        on 
+            load.account_id = trial_accounts.instance_account_id
+            and load.original_timestamp >= trial_accounts.instance_account_created_date
+            and load.original_timestamp <= dateadd('day', 5, date(trial_accounts.instance_account_created_date))
+    where load.source = 'auto_trigger'
+    group by all
+),
+
+modal_dismiss as (
+    select
+        dismiss.account_id,
+        count(*) as total_events,
+        count(distinct dismiss.account_id) as unique_events
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_dismiss_offer_scd2 dismiss
+    inner join accounts trial_accounts
+        on 
+            dismiss.account_id = trial_accounts.instance_account_id
+            and dismiss.original_timestamp >= trial_accounts.instance_account_created_date
+            and dismiss.original_timestamp <= dateadd('day', 2, date(trial_accounts.instance_account_created_date))
+    group by all
+),
+
+modal_buy_now as (
+    select
+        buy_now.account_id,
+        count(*) as total_events,
+        count(distinct buy_now.account_id) as unique_events
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2 buy_now
+    inner join accounts trial_accounts
+        on 
+            buy_now.account_id = trial_accounts.instance_account_id
+            and buy_now.original_timestamp >= trial_accounts.instance_account_created_date
+            and buy_now.original_timestamp <= dateadd('day', 2, date(trial_accounts.instance_account_created_date))
+    group by all
+),
+
+modal_see_all_plans as (
+    select
+        see_all_plans.account_id,
+        count(*) as total_events,
+        count(distinct see_all_plans.account_id) as unique_events
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2 see_all_plans
+    inner join accounts trial_accounts
+        on 
+            see_all_plans.account_id = trial_accounts.instance_account_id
+            and see_all_plans.original_timestamp >= trial_accounts.instance_account_created_date
+            and see_all_plans.original_timestamp <= dateadd('day', 2, date(trial_accounts.instance_account_created_date))
+    group by all
+),
+
+
+--- Additional actions: logins & payment page visits
+
+--- Logins
+logins as (
+    select  
+        emails.instance_account_id,
+        count(distinct emails.agent_last_login_timestamp) as total_logins,
+        case when total_logins = 1 then max(emails.instance_account_id) else null end as login_1_flag,
+        case when total_logins >= 2 then max(emails.instance_account_id) else null end as login_2_flag,
+        date(max(emails.agent_last_login_timestamp)) as last_login_date
+    from propagated_foundational.product_agent_info.dim_agent_emails_bcv emails
+    inner join accounts trial_accounts 
+        on 
+            emails.instance_account_id = trial_accounts.instance_account_id
+            and emails.agent_last_login_timestamp >= trial_accounts.instance_account_created_date
+            and emails.agent_last_login_timestamp <= dateadd('day', 2, date(trial_accounts.instance_account_created_date))
+    where 
+        emails.agent_role in ('Admin', 'Billing Admin')
+        or emails.agent_is_owner = True
+    group by emails.instance_account_id
+),
+
+--- Payment page visits
+payment_page_visits as (
+    select
+        payment.account_id,
+        count(*) as total_events,
+        count(distinct payment.account_id) as unique_events
+    from cleansed.segment_billing.segment_billing_payment_loaded_scd2 payment
+    inner join accounts trial_accounts
+        on 
+            payment.account_id = trial_accounts.instance_account_id
+            and payment.original_timestamp >= trial_accounts.instance_account_created_date
+            and payment.original_timestamp <= dateadd('day', 2, date(trial_accounts.instance_account_created_date))
+    where payment.paid_customer = FALSE
+    group by all
+),
+
+--- Joining all data together & count events
+
+cohorted_funnel as (
+    select
+        date(trial_accounts.instance_account_created_date) created_date,
+        count(*) as total_created_accounts,
+        count(distinct trial_accounts.instance_account_id) as unique_created_accounts,
+        sum(trial_accounts.verified_flag) as total_verified_accounts,
+
+        --- Segment funnel actions
+        ---- Total counts
+        sum(prompt_load.total_events) as total_prompt_loads,
+        sum(modal_load.total_events) as total_modal_loads,
+        sum(modal_load_auto_trigger.total_auto_trigger_count) as total_modal_loads_auto_trigger,
+        sum(modal_load.total_cta_count) as total_modal_loads_cta,
+        sum(modal_dismiss.total_events) as total_modal_dismisses,
+        sum(modal_buy_now.total_events) as total_modal_buy_now,
+        sum(modal_see_all_plans.total_events) as total_modal_see_all_plans,
+        ---- Unique counts
+        sum(prompt_load.unique_events) as unique_prompt_loads,
+        sum(modal_load.unique_events) as unique_modal_loads,
+        sum(modal_load_auto_trigger.unique_auto_trigger_count) as unique_modal_loads_auto_trigger,
+        sum(modal_load.unique_cta_count) as unique_modal_loads_cta,
+        sum(modal_dismiss.unique_events) as unique_modal_dismisses,
+        sum(modal_buy_now.unique_events) as unique_modal_buy_now,
+        sum(modal_see_all_plans.unique_events) as unique_modal_see_all_plans,
+
+        --- Additional actions
+        
+        ---- Logins
+        sum(logins.total_logins) as total_logins,
+        count(distinct logins.login_1_flag) as unique_login_1,
+        count(distinct logins.login_2_flag) as unique_login_2,
+        
+        --- Payment page visits
+        sum(payment_page_visits.total_events) as total_payment_page_visits,
+        sum(payment_page_visits.unique_events) as unique_payment_page_visits,
+        ---- Case query for payment visits & modal interactions
+        ---- Only unique events
+        sum(
+            case 
+                when 
+                    modal_buy_now.unique_events is not null
+                    and modal_see_all_plans.unique_events is null
+                then payment_page_visits.unique_events
+            end) as unique_payment_page_visits_just_buy_now,
+        sum(
+            case 
+                when 
+                    modal_buy_now.unique_events is null
+                    and modal_see_all_plans.unique_events is not null
+                then payment_page_visits.unique_events
+            end) as unique_payment_page_visits_just_see_all_plans,
+        sum(
+            case 
+                when 
+                    modal_buy_now.unique_events is not null
+                    and modal_see_all_plans.unique_events is not null
+                then payment_page_visits.unique_events
+            end) as unique_payment_page_visits_both,
+        sum(
+            case 
+                when 
+                    modal_buy_now.unique_events is null
+                    and modal_see_all_plans.unique_events is null
+                then payment_page_visits.unique_events
+            end) as unique_payment_page_visits_none,
+
+        --- Wins
+        sum(trial_accounts.win_flag) as total_wins,
+        --- Testing wins uniqueness
+        count(distinct case when trial_accounts.win_flag = 1 then trial_accounts.instance_account_id else null end) as unique_wins,
+        sum(win_flag_arr) as total_wins_arr,
+
+        --- By modal interactions
+        count(distinct 
+            case 
+                when 
+                    modal_buy_now.unique_events is not null
+                    and modal_see_all_plans.unique_events is null
+                    and trial_accounts.win_flag = 1
+                then trial_accounts.instance_account_id
+            end) as unique_wins_just_buy_now,
+        count(distinct 
+            case 
+                when 
+                    modal_buy_now.unique_events is null
+                    and modal_see_all_plans.unique_events is not null
+                    and trial_accounts.win_flag = 1
+                then trial_accounts.instance_account_id
+            end) as unique_wins_just_see_all_plans,
+        count(distinct 
+            case 
+                when 
+                    modal_buy_now.unique_events is not null
+                    and modal_see_all_plans.unique_events is not null
+                    and trial_accounts.win_flag = 1
+                then trial_accounts.instance_account_id
+            end) as unique_wins_both,
+        count(distinct 
+            case 
+                when 
+                    modal_buy_now.unique_events is null
+                    and modal_see_all_plans.unique_events is null
+                    and trial_accounts.win_flag = 1
+                then trial_accounts.instance_account_id
+            end) as unique_wins_none,
+        
+        --- By modal interactions & wins ARR
+        sum(case
+                when 
+                    modal_buy_now.unique_events is not null
+                    and modal_see_all_plans.unique_events is null
+                    and trial_accounts.win_flag = 1
+                then trial_accounts.win_flag_arr
+            end) as total_wins_just_buy_now_arr,
+        sum(case
+                when 
+                    modal_buy_now.unique_events is null
+                    and modal_see_all_plans.unique_events is not null
+                    and trial_accounts.win_flag = 1
+                then trial_accounts.win_flag_arr
+            end) as total_wins_just_see_all_plans_arr,
+        sum(case
+                when 
+                    modal_buy_now.unique_events is not null
+                    and modal_see_all_plans.unique_events is not null
+                    and trial_accounts.win_flag = 1
+                then trial_accounts.win_flag_arr
+            end) as total_wins_both_arr,
+        sum(case
+                when 
+                    modal_buy_now.unique_events is null
+                    and modal_see_all_plans.unique_events is null
+                    and trial_accounts.win_flag = 1
+                then trial_accounts.win_flag_arr
+            end) as total_wins_none_arr
+
+    from accounts trial_accounts
+    left join prompt_load on trial_accounts.instance_account_id = prompt_load.account_id
+    left join modal_load on trial_accounts.instance_account_id = modal_load.account_id
+    left join modal_load_auto_trigger on trial_accounts.instance_account_id = modal_load_auto_trigger.account_id
+    left join modal_dismiss on trial_accounts.instance_account_id = modal_dismiss.account_id
+    left join modal_buy_now on trial_accounts.instance_account_id = modal_buy_now.account_id
+    left join modal_see_all_plans on trial_accounts.instance_account_id = modal_see_all_plans.account_id
+    left join logins on trial_accounts.instance_account_id = logins.instance_account_id
+    left join payment_page_visits on trial_accounts.instance_account_id = payment_page_visits.account_id
+
+    group by all
+    
+)
+
+select *, CONVERT_TIMEZONE('UTC', 'America/Los_Angeles', CURRENT_TIMESTAMP) as updated_at
+from cohorted_funnel
+order by created_date 
+
+
+
+
+
+
+
+--- 
+
+joined as (
+    select
+        trial_accounts.instance_account_id,
+        trial_accounts.instance_account_created_date,
+        trial_accounts.first_verified_date,
+        logins.login_1,
+        logins.login_2,
+        logins.last_login_date,
+        first_modal.id as first_modal_id,
+        first_modal.account_id as first_modal_account_id,
+        modal_load.id as modal_load_id,
+        modal_load.account_id as modal_load_account_id,
+        modal_load.source
+    from presentation.growth_analytics.trial_accounts trial_accounts
+    left join logins on trial_accounts.instance_account_id = logins.instance_account_id
+    left join cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 first_modal 
+        on trial_accounts.instance_account_id = first_modal.account_id
+    left join cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 modal_load 
+        on trial_accounts.instance_account_id = modal_load.account_id
+    where 
+        trial_accounts.instance_account_created_date >= '2025-07-17'
+)
+
+
+
+
+
+
+
+
+select
+    trial_accounts.instance_account_created_date,
+    count(*) as total_accounts,
+    count(distinct trial_accounts.instance_account_id) as unique_accounts,
+    count(distinct case when trial_accounts.first_verified_date is not null then trial_accounts.instance_account_id else null end) as unique_verified_accounts,
+    
+    --------------------------
+    --- Logins:
+    count(distinct case when logins_.last_login_date is null and trial_accounts.first_verified_date is not null then trial_accounts.instance_account_id end) as unique_login_null,
+    count(distinct case when trial_accounts.first_verified_date is not null then logins_.login_1 end) as unique_login_1,
+    count(distinct case when trial_accounts.first_verified_date is not null then logins_.login_2 end) as unique_login_2,
+
+    --------------------------
+    --- First modal loads:
+    
+    --- Total/unique modal loads & timeboxed
+    --- Seems majority of modal loads happen at the same day as account creation
+    count(distinct case when first_modal.account_id is not null then first_modal.id end) as total_first_modal,
+    count(distinct case when first_modal.account_id is not null then trial_accounts.instance_account_id end) as unique_first_modal,
+    count(distinct case when first_modal.account_id is not null and trial_accounts.first_verified_date is not null then first_modal.id end) as total_first_modal_verified,
+    count(distinct case when first_modal.account_id is not null and trial_accounts.first_verified_date is not null then trial_accounts.instance_account_id end) as unique_first_modal_verified,
+    count(distinct case
+            when
+                first_modal.account_id is not null
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', first_modal.original_timestamp)) <= 2
+            then first_modal.id
+        end) as total_first_modal_timeboxed,
+    count(distinct case
+            when
+                first_modal.account_id is not null
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', first_modal.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_first_modal_timeboxed,
+   
+    --- Total/unique by auto trigger
+    count(distinct case when modal_load.source = 'auto_trigger' and first_modal.account_id is not null then first_modal.id end) as total_first_modal_auto_trigger,
+    count(distinct case when modal_load.source = 'auto_trigger' and first_modal.account_id is not null then trial_accounts.instance_account_id end) as unique_first_modal_auto_trigger,
+    count(distinct case
+            when
+                first_modal.account_id is not null
+                and modal_load.source = 'auto_trigger'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', first_modal.original_timestamp)) <= 2
+            then first_modal.id
+        end) as total_first_modal_timeboxed_auto_trigger,
+    count(distinct case
+            when
+                first_modal.account_id is not null
+                and modal_load.source = 'auto_trigger'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', first_modal.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_first_modal_timeboxed_auto_trigger,
+   
+    --- Total/unique by CTA click
+    count(distinct case when modal_load.source = 'CTA' and first_modal.account_id is not null then first_modal.id end) as total_first_modal_cta,
+    count(distinct case when modal_load.source = 'CTA' and first_modal.account_id is not null then trial_accounts.instance_account_id end) as unique_first_modal_cta,
+    count(distinct case
+            when
+                first_modal.account_id is not null
+                and modal_load.source = 'CTA'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', first_modal.original_timestamp)) <= 2
+            then first_modal.id
+        end) as total_first_modal_timeboxed_cta,
+    count(distinct case
+            when
+                first_modal.account_id is not null
+                and modal_load.source = 'CTA'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', first_modal.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_first_modal_timeboxed_cta,
+
+    --------------------------
+    --- Modal loads:
+    
+    --- Total/unique modal loads & timeboxed
+    --- Seems majority of modal loads happen at the same day as account creation
+    count(distinct case when modal_load.account_id is not null then modal_load.id end) as total_modal_loads,
+    count(distinct case when modal_load.account_id is not null then trial_accounts.instance_account_id end) as unique_modal_loads,
+    count(distinct case 
+            when 
+                modal_load.account_id is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_load.original_timestamp)) <= 2
+            then modal_load.id
+        end) as total_modal_loads_timeboxed,
+    count(distinct case 
+            when 
+                modal_load.account_id is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_load.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_modal_loads_timeboxed,
+    
+    --- Total/unique by auto trigger
+    count(distinct case when modal_load.source = 'auto_trigger' and modal_load.account_id is not null then modal_load.id end) as total_modal_loads_auto_trigger,
+    count(distinct case when modal_load.source = 'auto_trigger' and modal_load.account_id is not null then trial_accounts.instance_account_id end) as unique_modal_loads_auto_trigger,
+    count(distinct case 
+            when 
+                modal_load.account_id is not null 
+                and modal_load.source = 'auto_trigger'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_load.original_timestamp)) <= 2
+            then modal_load.id
+        end) as total_modal_loads_timeboxed_auto_trigger,
+    count(distinct case 
+            when 
+                modal_load.account_id is not null 
+                and modal_load.source = 'auto_trigger'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_load.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_modal_loads_timeboxed_auto_trigger,
+    
+    --- Total/unique by CTA click
+    count(distinct case when modal_load.source = 'CTA' and modal_load.account_id is not null then modal_load.id end) as total_modal_loads_cta,
+    count(distinct case when modal_load.source = 'CTA' and modal_load.account_id is not null then trial_accounts.instance_account_id end) as unique_modal_loads_cta,
+    count(distinct case 
+            when 
+                modal_load.account_id is not null 
+                and modal_load.source = 'CTA'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_load.original_timestamp)) <= 2
+            then modal_load.id
+        end) as total_modal_loads_timeboxed_cta,
+    count(distinct case 
+            when 
+                modal_load.account_id is not null 
+                and modal_load.source = 'CTA'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_load.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_modal_loads_timeboxed_cta,
+
+    --------------------------
+    --- Modal buy now:
+    
+    --- Total/unique modal loads & timeboxed
+    --- Seems majority of modal loads happen at the same day as account creation
+    count(distinct case when modal_buy_now.account_id is not null then modal_buy_now.id end) as total_modal_buy_now,
+    count(distinct case when modal_buy_now.account_id is not null then trial_accounts.instance_account_id end) as unique_modal_buy_now,
+    count(distinct case 
+            when 
+                modal_buy_now.account_id is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_buy_now.original_timestamp)) <= 2
+            then modal_buy_now.id
+        end) as total_modal_buy_now_timeboxed,
+    count(distinct case 
+            when 
+                modal_buy_now.account_id is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_buy_now.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_modal_buy_now_timeboxed,
+    
+    --- Total/unique by auto trigger
+    count(distinct case when modal_load.source = 'auto_trigger' and modal_buy_now.account_id is not null then modal_buy_now.id end) as total_modal_buy_now_auto_trigger,
+    count(distinct case when modal_load.source = 'auto_trigger' and modal_buy_now.account_id is not null then trial_accounts.instance_account_id end) as unique_modal_buy_now_auto_trigger,
+    count(distinct case 
+            when 
+                modal_buy_now.account_id is not null 
+                and modal_load.source = 'auto_trigger'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_buy_now.original_timestamp)) <= 2
+            then modal_buy_now.id
+        end) as total_modal_buy_now_timeboxed_auto_trigger,
+    count(distinct case 
+            when 
+                modal_buy_now.account_id is not null 
+                and modal_load.source = 'auto_trigger'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_buy_now.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_modal_buy_now_timeboxed_auto_trigger,
+    
+    --- Total/unique by CTA click
+    count(distinct case when modal_load.source = 'CTA' and modal_buy_now.account_id is not null then modal_buy_now.id end) as total_modal_buy_now_cta,
+    count(distinct case when modal_load.source = 'CTA' and modal_buy_now.account_id is not null then trial_accounts.instance_account_id end) as unique_modal_buy_now_cta,
+    count(distinct case 
+            when 
+                modal_buy_now.account_id is not null 
+                and modal_load.source = 'CTA'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_buy_now.original_timestamp)) <= 2
+            then modal_buy_now.id
+        end) as total_modal_buy_now_timeboxed_cta,
+    count(distinct case 
+            when 
+                modal_buy_now.account_id is not null 
+                and modal_load.source = 'CTA'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', modal_buy_now.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_modal_buy_now_timeboxed_cta,
+
+    --------------------------
+    --- Cart loaded:
+    
+    --- Total/unique modal loads & timeboxed
+    --- Seems majority of modal loads happen at the same day as account creation
+    count(distinct case when cart_load.account_id is not null then cart_load.id end) as total_cart_loaded_all,
+    count(distinct case when cart_load.account_id is not null then trial_accounts.instance_account_id end) as unique_cart_loaded_all,
+    count(distinct case when cart_load.account_id is not null and modal_buy_now.account_id is not null then cart_load.id end) as total_cart_loaded_buy_now,
+    count(distinct case when cart_load.account_id is not null and modal_buy_now.account_id is not null then trial_accounts.instance_account_id end) as unique_cart_loaded_buy_now,
+    count(distinct case 
+            when 
+                cart_load.account_id is not null and modal_buy_now.account_id is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', cart_load.original_timestamp)) <= 2
+            then cart_load.id
+        end) as total_cart_loaded_timeboxed,
+    count(distinct case 
+            when 
+                cart_load.account_id is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', cart_load.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_cart_loaded_timeboxed_all,
+    count(distinct case 
+            when 
+                cart_load.account_id is not null and modal_buy_now.account_id is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', cart_load.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_cart_loaded_timeboxed_buy_now,
+    
+    --- Total/unique by auto trigger
+    count(distinct case when modal_load.source = 'auto_trigger' and cart_load.account_id is not null and modal_buy_now.account_id is not null then cart_load.id end) as total_cart_loaded_auto_trigger,
+    count(distinct case when modal_load.source = 'auto_trigger' and cart_load.account_id is not null and modal_buy_now.account_id is not null then trial_accounts.instance_account_id end) as unique_cart_loaded_auto_trigger,
+    count(distinct case 
+            when 
+                cart_load.account_id is not null and modal_buy_now.account_id is not null 
+                and modal_load.source = 'auto_trigger'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', cart_load.original_timestamp)) <= 2
+            then cart_load.id
+        end) as total_cart_loaded_timeboxed_auto_trigger,
+    count(distinct case 
+            when 
+                cart_load.account_id is not null and modal_buy_now.account_id is not null 
+                and modal_load.source = 'auto_trigger'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', cart_load.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_cart_loaded_timeboxed_auto_trigger,
+    
+    --- Total/unique by CTA click
+    count(distinct case when modal_load.source = 'CTA' and cart_load.account_id is not null and modal_buy_now.account_id is not null then cart_load.id end) as total_cart_loaded_cta,
+    count(distinct case when modal_load.source = 'CTA' and cart_load.account_id is not null and modal_buy_now.account_id is not null then trial_accounts.instance_account_id end) as unique_cart_loaded_cta,
+    count(distinct case 
+            when 
+                cart_load.account_id is not null and modal_buy_now.account_id is not null 
+                and modal_load.source = 'CTA'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', cart_load.original_timestamp)) <= 2
+            then cart_load.id
+        end) as total_cart_loaded_timeboxed_cta,
+    count(distinct case 
+            when 
+                cart_load.account_id is not null and modal_buy_now.account_id is not null 
+                and modal_load.source = 'CTA'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', cart_load.original_timestamp)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_cart_loaded_timeboxed_cta,
+
+
+    --------------------------
+    --- Wins:
+    
+    --- Total/unique modal loads & timeboxed
+    --- Seems majority of modal loads happen at the same day as account creation
+    sum(case when trial_accounts.win_date is not null then 1 else 0 end) as total_wins,
+    count(distinct case when trial_accounts.win_date is not null then trial_accounts.instance_account_id end) as unique_wins,
+    sum(case when trial_accounts.win_date is not null and first_modal.account_id is not null then 1 else 0 end) as total_wins_first_modal,
+    count(distinct case when trial_accounts.win_date is not null and first_modal.account_id is not null then trial_accounts.instance_account_id end) as unique_wins_first_modal,
+    sum(case when trial_accounts.win_date is not null and modal_buy_now.account_id is not null then 1 else 0 end) as total_wins_buy_now,
+    count(distinct case when trial_accounts.win_date is not null and modal_buy_now.account_id is not null then trial_accounts.instance_account_id end) as unique_wins_buy_now,
+    sum(case when trial_accounts.win_date is not null and cart_load.account_id is not null then 1 else 0 end) as total_wins_cart_loaded,
+    count(distinct case when trial_accounts.win_date is not null and cart_load.account_id is not null then trial_accounts.instance_account_id end) as unique_wins_cart_loaded,
+    sum(case 
+            when 
+                trial_accounts.win_date is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', trial_accounts.win_date)) <= 2
+            then 1
+            else 0
+        end) as total_wins_timeboxed,
+    count(distinct case 
+            when 
+                trial_accounts.win_date is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', trial_accounts.win_date)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_wins_timeboxed,
+    count(distinct case 
+            when 
+                trial_accounts.win_date is not null 
+                and first_modal.account_id is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', trial_accounts.win_date)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_wins_first_modal_timeboxed,
+    count(distinct case 
+            when 
+                trial_accounts.win_date is not null 
+                and modal_buy_now.account_id is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', trial_accounts.win_date)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_wins_modal_buy_now_timeboxed,
+    count(distinct case 
+            when 
+                trial_accounts.win_date is not null 
+                and cart_load.account_id is not null 
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', trial_accounts.win_date)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_wins_cart_load_timeboxed,
+    
+    --- Total/unique by auto trigger
+    sum(case when modal_load.source = 'auto_trigger' and trial_accounts.win_date is not null then 1 else 0 end) as total_wins_auto_trigger,
+    count(distinct case when modal_load.source = 'auto_trigger' and trial_accounts.win_date is not null then trial_accounts.instance_account_id end) as unique_wins_auto_trigger,
+    sum(case 
+            when 
+                trial_accounts.win_date is not null 
+                and modal_load.source = 'auto_trigger'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', trial_accounts.win_date)) <= 2
+            then 1
+            else 0
+        end) as total_wins_timeboxed_auto_trigger,
+    count(distinct case 
+            when 
+                trial_accounts.win_date is not null 
+                and modal_load.source = 'auto_trigger'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', trial_accounts.win_date)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_wins_timeboxed_auto_trigger,
+    
+    --- Total/unique by CTA click
+    sum(case when modal_load.source = 'CTA' and trial_accounts.win_date is not null then 1 else 0 end) as total_wins_cta,
+    count(distinct case when modal_load.source = 'CTA' and trial_accounts.win_date is not null then trial_accounts.instance_account_id end) as unique_wins_cta,
+    sum(case 
+            when 
+                trial_accounts.win_date is not null 
+                and modal_load.source = 'CTA'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', trial_accounts.win_date)) <= 2
+            then 1
+            else 0
+        end) as total_wins_timeboxed_cta,
+    count(distinct case 
+            when 
+                trial_accounts.win_date is not null 
+                and modal_load.source = 'CTA'
+                and datediff(day, trial_accounts.instance_account_created_date, date_trunc('day', trial_accounts.win_date)) <= 2
+            then trial_accounts.instance_account_id
+        end) as unique_wins_timeboxed_cta,
+
+from presentation.growth_analytics.trial_accounts trial_accounts 
+left join cleansed.segment_support.growth_engine_trial_cta_1_scd2 first_modal
+    on trial_accounts.instance_account_id = first_modal.account_id
+left join cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 modal_load
+    on trial_accounts.instance_account_id = modal_load.account_id
+left join cleansed.segment_support.growth_engine_trial_cta_1_buy_now_scd2 modal_buy_now
+    on trial_accounts.instance_account_id = modal_buy_now.account_id
+left join logins logins_
+    on trial_accounts.instance_account_id = logins_.instance_account_id
+left join ( --- Count only cart loads from buy trial CTAs
+    select *
+    from cleansed.segment_billing.segment_billing_cart_loaded_scd2
+    where 
+        cart_screen in ('preset_trial_plan', 'buy_your_trial', 'buy_trial_plan')
+        and cart_type = 'spp_self_service'
+        and paid_customer = False
+    ) cart_load
+    on trial_accounts.instance_account_id = cart_load.account_id
+where 
+    trial_accounts.instance_account_created_date >= '2025-07-17'
+group by all
+order by 1
+
 
 
 
