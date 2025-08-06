@@ -1313,18 +1313,48 @@ order by win_date
 --- Minimum 3 days before showing auto pop up
 select 
     date(original_timestamp) as date_loaded,
-    count(*) as total_count,
-    count(distinct account_id) as unique_accounts,
+    count(*) as total_auto_trigger_loads,
+    count(distinct account_id) as unique_auto_trigger_loads,
     --- Max & min date diff between account creation and auto-trigger load
-    max(datediff('day', date(instance_account_created_date), date(original_timestamp))) as max_date_diff,
-    min(datediff('day', date(instance_account_created_date), date(original_timestamp))) as min_date_diff
+    min(datediff('day', date(instance_account_created_date), date(original_timestamp))) as minimum_age_days,
+    max(datediff('day', date(instance_account_created_date), date(original_timestamp))) as max_age_days
 from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 loads
 inner join presentation.growth_analytics.trial_accounts trial_accounts
-    on 
-        loads.account_id = trial_accounts.instance_account_id
+    on loads.account_id = trial_accounts.instance_account_id
 where loads.source = 'auto_trigger'
 group by 1
-order by 1 desc
+order by 1
+
+
+
+select distinct
+    trial_accounts.instance_account_created_date,
+    account_id
+    --loads.*
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 loads
+inner join presentation.growth_analytics.trial_accounts trial_accounts
+    on loads.account_id = trial_accounts.instance_account_id
+where datediff('day', date(instance_account_created_date), date(original_timestamp)) >= 200
+
+
+--- Using dim instance
+--- Minimum 3 days before showing auto pop up
+select 
+    date(original_timestamp) as date_loaded,
+    count(*) as total_auto_trigger_loads,
+    count(distinct account_id) as unique_auto_trigger_loads,
+    --- Max & min date diff between account creation and auto-trigger load
+    min(datediff('day', date(instance_account_created_timestamp), date(original_timestamp))) as minimum_age_days,
+    max(datediff('day', date(instance_account_created_timestamp), date(original_timestamp))) as max_age_days
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 loads
+inner join foundational.customer.dim_instance_accounts_daily_snapshot_bcv accounts
+    on loads.account_id = accounts.instance_account_id
+where 
+    loads.source = 'auto_trigger'
+    and instance_account_derived_type = 'Active Trial'
+group by 1
+order by 1
+
 
 
 
