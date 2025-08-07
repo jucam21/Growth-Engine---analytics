@@ -2119,6 +2119,211 @@ order by win_date;
 
 
 
+
+
+
+------------------------------------------
+--- Cart load events - weird cases
+
+
+--- 1. Account 25576458
+--- Interacted 
+--- compare plans - central admin
+--- Win date Aug 05
+
+select 
+    original_timestamp,
+    account_id,
+    offer_id,
+    plan_name,
+    preview_state,
+    source
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 
+where account_id = 25576458
+order by original_timestamp desc;
+
+
+select 
+    original_timestamp,
+    account_id,
+    cart_screen,
+    cart_step,
+    cart_version,
+    origin,
+    cart_type
+from cleansed.segment_billing.segment_billing_cart_loaded_scd2
+where 
+    account_id = 25576458
+    and date(original_timestamp) <= '2025-08-05'
+    and paid_customer = False
+order by original_timestamp desc
+limit 10
+
+
+
+
+
+--- 2. Account 25402709
+--- Interacted
+--- Compare plans - expired trial
+--- Win date Jul 31
+
+
+select 
+    original_timestamp,
+    account_id,
+    offer_id,
+    plan_name,
+    preview_state,
+    source
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 
+where account_id = 25402709
+order by original_timestamp desc;
+
+
+select 
+    original_timestamp,
+    account_id,
+    cart_screen,
+    cart_step,
+    cart_version,
+    origin,
+    cart_type
+from cleansed.segment_billing.segment_billing_cart_loaded_scd2
+where 
+    account_id = 25402709
+    and date(original_timestamp) <= '2025-07-31'
+    and paid_customer = False
+order by original_timestamp desc
+limit 15
+
+
+
+
+
+--- 3. Account 25587666
+--- Not Interacted
+--- compare plans - trial home
+--- Win date Aug 05
+
+
+
+select 
+    original_timestamp,
+    account_id,
+    offer_id,
+    plan_name,
+    preview_state,
+    source
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 
+where account_id = 25587666
+order by original_timestamp desc;
+
+
+select 
+    original_timestamp,
+    account_id,
+    cart_screen,
+    cart_step,
+    cart_version,
+    origin,
+    cart_type
+from cleansed.segment_billing.segment_billing_cart_loaded_scd2
+where 
+    account_id = 25587666
+    and date(original_timestamp) <= '2025-08-05'
+    and paid_customer = False
+order by original_timestamp desc
+limit 10
+
+
+
+
+
+--- 4. Account 25572478
+--- Not Interacted
+--- buy your trial - central admin
+--- Win date Aug 01
+
+
+
+select 
+    original_timestamp,
+    account_id,
+    offer_id,
+    plan_name,
+    preview_state,
+    source
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 
+where account_id = 25572478
+order by original_timestamp desc;
+
+
+select 
+    original_timestamp,
+    account_id,
+    cart_screen,
+    cart_step,
+    cart_version,
+    origin,
+    cart_type
+from cleansed.segment_billing.segment_billing_cart_loaded_scd2
+where 
+    account_id = 25572478
+    and date(original_timestamp) <= '2025-08-01'
+    and paid_customer = False
+order by original_timestamp desc
+limit 10
+
+
+
+select 
+    count(*) tot_events,
+    count(distinct user_id) as unique_users
+from cleansed.segment_support.simple_setup_bcv
+
+
+--- 5. Account 24697805
+--- Not Interacted
+--- compare plans - expired trial
+--- Win date Aug 04
+
+
+
+select 
+    original_timestamp,
+    account_id,
+    offer_id,
+    plan_name,
+    preview_state,
+    source
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 
+where account_id = 24697805
+order by original_timestamp desc;
+
+
+select 
+    original_timestamp,
+    account_id,
+    cart_screen,
+    cart_step,
+    cart_version,
+    origin,
+    cart_type
+from cleansed.segment_billing.segment_billing_cart_loaded_scd2
+where 
+    account_id = 24697805
+    and date(original_timestamp) <= '2025-08-04'
+    and paid_customer = False
+order by original_timestamp desc
+limit 10
+
+
+
+
+
+
+
 ------------------------------------------
 --- New funnels
 

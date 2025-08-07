@@ -337,3 +337,53 @@ group by 1,2
 )
 
 
+
+
+
+
+
+
+
+
+
+
+-----------------------------------------------------
+--- Testing cart events
+--- https://docs.google.com/spreadsheets/d/1zP7fGcfuqa3yUbxV1h7T1vfjw0SOIr-1krcR2duokbU/edit?gid=0#gid=0
+
+
+
+trial_modal_load_compare_plans
+{offer_id}_click_trial_modal_buy_now
+click_trial_select_all_plans
+click_trial_modal_dismiss
+view_suite_plan_select_all_plans
+"click_buy_now_suite_Professional
+click_buy_now_support_Professional"
+click_back_button_all_plans
+view_payment_modal_buy_now
+view_payment_buy_your_trial
+view_payment_compare_plans
+complete_purchase_buy_your_trial_trial
+complete_purchase_modal_buy_now_cta
+complete_purchase_compare_plans
+payment_successful_buy_your_trial
+payment_successful_modal_buy_now
+payment_successful_compare_plans
+
+
+
+
+select distinct
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as created_timestamp,
+    standard_experiment_account_event_name,
+    standard_experiment_name,
+from propagated_cleansed.pda.base_standard_experiment_account_events
+where 
+    instance_account_id = 24224646
+
+
+
+
+  
+    
