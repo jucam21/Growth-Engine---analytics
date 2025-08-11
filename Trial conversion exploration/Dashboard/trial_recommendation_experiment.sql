@@ -385,14 +385,156 @@ where
 
 
 
+
+
+--- Trial: 25614011
+--- Control: 25614012
   
+
+
 select distinct
     convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as created_timestamp,
+    instance_account_id,
     standard_experiment_account_event_name,
     standard_experiment_name,
 from propagated_cleansed.pda.base_standard_experiment_account_events
 where 
-    lower(standard_experiment_name) like '%plan_recommendation%'
+    lower(standard_experiment_name) like '%persistent_buy_plan_recommendations%'
+order by created_timestamp
 
 
+
+
+
+select distinct
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as created_timestamp,
+    instance_account_id,
+    standard_experiment_account_event_name,
+    standard_experiment_name,
+from propagated_cleansed.pda.base_standard_experiment_account_events
+where 
+    lower(standard_experiment_name) like '%persistent_buy%'
+    and convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-08'
+order by created_timestamp
+
+
+
+
+
+select 
+    STANDARD_EXPERIMENT_NAME,
+    count(*) as total_accounts,
+    min(convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)) as first_event_time,
+    max(convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)) as last_event_time
+from propagated_cleansed.pda.base_standard_experiment_account_events
+where 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-11'
+group by all
+order by 3
     
+
+
+
+
+
+select 
+    STANDARD_EXPERIMENT_NAME,
+    count(*) as total_accounts,
+    min(convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)) as first_event_time,
+    max(convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)) as last_event_time
+from propagated_cleansed.pda.base_standard_experiment_account_events
+where 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-08'
+    and instance_account_id in (25614011, 25614012)
+group by all
+order by 3
+    
+
+
+
+select *
+from propagated_cleansed.pda.base_standard_experiment_account_events
+where 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-08'
+    and instance_account_id in (25614011, 25614012)
+order by convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)
+
+
+
+select max(convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)) as last_event_time
+from propagated_cleansed.pda.base_standard_experiment_account_events
+
+
+
+
+
+
+
+select 
+    standard_experiment_name,
+    count(*) as total_accounts,
+    min(convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)) as first_event_time,
+    max(convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)) as last_event_time
+from propagated_cleansed.pda.base_standard_experiment_account_participations
+where 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-11'
+group by 1
+order by 3 desc
+
+
+
+--- Checking in account participations table
+select *
+from propagated_cleansed.pda.base_standard_experiment_account_participations
+where 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-10'
+    and instance_account_id in (25614011, 25614012)
+
+
+
+--- Checking in participation table
+select 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as created_timestamp_adj,
+    instance_account_id,
+    standard_experiment_participation_variation,
+    standard_experiment_name
+from propagated_cleansed.pda.base_standard_experiment_account_participations
+where 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-10'
+    --and instance_account_id in (25614011, 25614012)
+order by convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) desc
+limit 100
+
+
+
+
+
+--- Checking in events table
+select 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as created_timestamp_adj,
+    instance_account_id,
+    standard_experiment_account_event_name,
+    standard_experiment_name
+from propagated_cleansed.pda.base_standard_experiment_account_events
+where 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-10'
+    --and instance_account_id in (25614011, 25614012)
+order by convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) desc
+limit 100
+
+
+
+
+
+
+--- Max date
+select 
+    max(convert_timezone('UTC', 'America/Los_Angeles', updated_timestamp)) updated_timestamp,
+    max(convert_timezone('UTC', 'America/Los_Angeles', zdp_meta_l1_ingest_timestamp)) zdp_meta_l1_ingest_timestamp,
+    max(convert_timezone('UTC', 'America/Los_Angeles', zdp_meta_processed_timestamp)) zdp_meta_processed_timestamp,
+    max(convert_timezone('UTC', 'America/Los_Angeles', zdp_meta_header_created_timestamp)) zdp_meta_header_created_timestamp
+from propagated_cleansed.pda.base_standard_experiment_account_participations
+where 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-10'
+
+
