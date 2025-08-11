@@ -964,9 +964,469 @@ modal_see_all_plans as (
     group by all
 ),
 
+--- Last billing cart loaded event
+billing_cart_loaded as (
+    select
+        mapping.crm_account_id,
+        cart_screen,
+        cart_step,
+        cart_version,
+        origin,
+        cart_type,
+        date(original_timestamp) as max_date
+    from 
+        cleansed.segment_billing.segment_billing_cart_loaded_scd2 billing_cart_loaded
+    --- Remove testing accounts
+    inner join presentation.growth_analytics.trial_accounts trial_accounts  
+        on 
+            trial_accounts.instance_account_id = billing_cart_loaded.account_id
+            and date(billing_cart_loaded.original_timestamp) <= trial_accounts.win_date
+            and date(billing_cart_loaded.original_timestamp) >= dateadd('day', -15, trial_accounts.win_date)
+    --- CRM
+    left join foundational.customer.entity_mapping_daily_snapshot mapping
+        on 
+            billing_cart_loaded.account_id = mapping.instance_account_id
+            and date(billing_cart_loaded.original_timestamp) = mapping.source_snapshot_date
+    where paid_customer = FALSE
+    qualify row_number() over (partition by mapping.crm_account_id order by billing_cart_loaded.original_timestamp desc) = 1
+),
+
+joined as (
+    select
+        bookings_.crm_account_id,
+        bookings_.pro_forma_signature_date,
+        bookings_.total_booking_arr_usd,
+        --- Cases for modal interactions
+        case 
+            when modal_buy_now_.crm_account_id is not null and modal_see_all_plans_.crm_account_id is null 
+            then 'buy_now_clicked'
+            when modal_buy_now_.crm_account_id is null and modal_see_all_plans_.crm_account_id is not null 
+            then 'see_all_plans_clicked'
+            when modal_buy_now_.crm_account_id is not null and modal_see_all_plans_.crm_account_id is not null 
+            then 'both_clicked'
+            when modal_buy_now_.crm_account_id is null and modal_see_all_plans_.crm_account_id is null 
+            then 'no_cta_clicked'
+            else 'unknown'
+        end as modal_clicked,
+        billing_cart_loaded_.cart_screen,
+        billing_cart_loaded_.cart_step,
+        billing_cart_loaded_.cart_version,
+        billing_cart_loaded_.origin,
+        billing_cart_loaded_.cart_type,
+        billing_cart_loaded_.max_date as max_date_billing_cart_loaded
+
+    from bookings bookings_
+    left join modal_buy_now modal_buy_now_
+        on bookings_.crm_account_id = modal_buy_now_.crm_account_id
+    left join modal_see_all_plans modal_see_all_plans_
+        on bookings_.crm_account_id = modal_see_all_plans_.crm_account_id
+    left join billing_cart_loaded billing_cart_loaded_
+        on bookings_.crm_account_id = billing_cart_loaded_.crm_account_id
+    where
+        bookings_.pro_forma_signature_date >= '2025-05-01'
+)
+
+select *
+from joined
+where 
+    origin is null
+limit 10
+
+
+-- Bookings no cart event
+/* 
+001PC00000TVUfRYAX
+001PC00000RmnZzYAJ
+001PC00000TAXn7YAH
+001PC00000RXpImYAL
+001PC00000RxujRYAR
+*/
+
+
+--- Search for bookings with no cart event
+
+select *
+from foundational.customer.entity_mapping_daily_snapshot_bcv
+where crm_account_id in (
+    '001PC00000TVUfRYAX',
+    '001PC00000RmnZzYAJ',
+    '001PC00000TAXn7YAH',
+    '001PC00000RXpImYAL',
+    '001PC00000RxujRYAR'
+    )
+
+select *
+from cleansed.segment_billing.segment_billing_cart_loaded_scd2
+where 
+    account_id in (
+        25534919, 
+        25410185, 
+        25305955, 
+        25429949, 
+        25386939
+        )
+    and paid_customer = False
+
+
+
+
+
+select
+    pro_forma_signature_date,
+    count(*) as total_wins,
+    count(distinct crm_account_id) as unique_crm_wins,
+    sum(case when origin is null then 1 else null end) as no_cart_event
+from joined
+group by 1
+order by 1 desc
+
+
+
+------ Previous Null query
+
+
+select
+    --date_trunc(week, win_date) as week,
+    date_trunc('day', win_date) as day,
+    case
+        when first_shopping_cart_visit_timestamp is null then '0. no_cart_visit'
+        when datediff(day, first_shopping_cart_visit_timestamp::date, win_date) <= 7 then '1. less_5'
+        when datediff(day, first_shopping_cart_visit_timestamp::date, win_date) <= 15 then '2. 7-15'
+        when datediff(day, first_shopping_cart_visit_timestamp::date, win_date) <= 30 then '3. 15-30'
+        when datediff(day, first_shopping_cart_visit_timestamp::date, win_date) <= 100 then '4. 30-100'
+        when datediff(day, first_shopping_cart_visit_timestamp::date, win_date) > 100 then '5. 100+'
+        else 'Edge case'
+    end as cart_visit_diff,
+    count(*) tot_obs,
+    count(distinct instance_account_id) as total_wins,
+    count(distinct iff(first_shopping_cart_visit_timestamp is not null, instance_account_id, null)) cart_visit
+
+from presentation.growth_analytics.trial_accounts
+where win_date is not null
+    and win_date >= '2025-07-01'
+    and sales_model_at_win = 'Self-service'
+group by all
+order by 1, 2
+
+
+
+
+
+
+
+select
+    date_trunc(week, win_date) as week,
+    sum(case when first_shopping_cart_visit_timestamp is null then 1 else 0 end) as no_cart_visit,
+    sum(case when datediff(day, first_shopping_cart_visit_timestamp::date, win_date) <= 100 then 1 else 0 end) as cart_visit_less_100d,
+    sum(case when datediff(day, first_shopping_cart_visit_timestamp::date, win_date) > 100 then 1 else 0 end) as cart_visit_plus_100d,
+    count(*) tot_obs,
+    count(distinct instance_account_id) as total_wins,
+    sum(case when is_startup_program then 1 else 0 end) as is_startup_program,
+
+    --- Percentages per time period
+    no_cart_visit / tot_obs as pct_no_cart_visit,
+    cart_visit_less_100d / tot_obs as pct_cart_visit_less_100d,
+    cart_visit_plus_100d / tot_obs as pct_cart_visit_plus_100d,
+    (no_cart_visit + cart_visit_plus_100d) / tot_obs as pct_cart_visit_no_100plus
+
+from presentation.growth_analytics.trial_accounts
+where win_date is not null
+    and win_date >= '2024-01-01'
+    and sales_model_at_win = 'Self-service'
+    and is_startup_program = False
+group by all
+order by 1, 2
+
+
+
+
+
+
+
+
+
+
+select
+    date_trunc(week, win_date) as week,
+    sum(case when datediff(day, instance_account_created_date::date, win_date) <= 30 then 1 else 0 end) as wins_less_30d,
+    sum(case when datediff(day, instance_account_created_date::date, win_date) > 30 then 1 else 0 end) as wins_plus_30d,
+    count(*) tot_obs,
+    count(distinct instance_account_id) as total_wins,
+    sum(case when is_startup_program then 1 else 0 end) as is_startup_program,
+
+    --- Percentages per time period
+    wins_less_30d / tot_obs as pct_wins_less_30d,
+    wins_plus_30d / tot_obs as pct_wins_plus_30d,
+    (wins_less_30d + wins_plus_30d) / tot_obs as pct_wins_no_30plus
+
+from presentation.growth_analytics.trial_accounts
+where win_date is not null
+    and win_date >= '2025-01-01'
+    and sales_model_at_win = 'Self-service'
+    and is_startup_program = False
+    and is_direct_buy = False
+group by all
+order by 1, 2
+
+
+
+
+
+
+select
+    date_trunc(week, win_date) as week,
+    --- Case for all possible types of wins
+    case 
+        when is_startup_program then '0. Startup program'
+        when is_direct_buy then '1. Direct buy'
+        when datediff(day, instance_account_created_date::date, win_date) <= 15 then '2. Less than 15 days'
+        when datediff(day, instance_account_created_date::date, win_date) <= 30 then '3. 15-30 days'
+        when datediff(day, instance_account_created_date::date, win_date) <= 100 then '4. 30-100 days'
+        when datediff(day, instance_account_created_date::date, win_date) > 100 then '5. More than 100 days'   
+        else '6. Other'
+    end as win_type,
+
+    count(*) tot_obs,
+    count(distinct instance_account_id) as total_wins,
+    sum(instance_account_arr_usd_at_win) as total_wins_arr
+
+from presentation.growth_analytics.trial_accounts
+where win_date is not null
+    and win_date >= '2025-01-01'
+    and sales_model_at_win = 'Self-service'
+    --and is_startup_program = False
+    --and is_direct_buy = False
+group by all
+order by 1, 2
+
+
+
+
+
+
+
+
+-----------------------------------------
+--- Bookings vs wins
+
+with bookings as (
+    select 
+        date_trunc(month, pro_forma_signature_date) as month,
+        count(*) as total_obs,
+        count(distinct crm_account_id) as unique_crm_accounts,
+        sum(total_booking_arr_usd) as total_booking_arr_usd
+    from functional.finance.sfa_crm_bookings_current
+    where
+        pro_forma_market_segment_at_close_date = 'Digital'
+        and sales_motion = 'Online'
+        and type = 'New Business'
+        and pro_forma_signature_date >= '2024-01-01'
+    group by all
+),
+
+wins as (
+    select 
+        date_trunc(month, win_date) as month,
+        count(*) as total_obs,
+        count(distinct instance_account_id) as unique_wins,
+        sum(instance_account_arr_usd_at_win) as total_wins_arr
+    from presentation.growth_analytics.trial_accounts
+    where 
+        win_date is not null
+        and sales_model_at_win = 'Self-service'
+        and is_direct_buy = False
+        and win_date >= '2024-01-01'
+    group by 1
+)
+
+select 
+    bookings_.month,
+    bookings_.total_obs as total_bookings,
+    bookings_.unique_crm_accounts as unique_crm_bookings,
+    bookings_.total_booking_arr_usd as total_bookings_arr,
+    wins_.total_obs as total_wins,
+    wins_.unique_wins as unique_wins,
+    wins_.total_wins_arr as total_wins_arr
+from bookings bookings_
+left join wins wins_
+    on bookings_.month = wins_.month
+order by 1
+
+
+
+
+
+
+
+-----------------------------------------
+--- Calculate total cohorts
+
+with deleted_accounts as (
+    select 
+        instance_account_id,
+        min(source_snapshot_date) as first_deleted_date
+    from foundational.customer.dim_instance_accounts_daily_snapshot
+    where instance_account_is_deleted = True
+    group by 1
+),
+
+dates as (
+    select distinct
+        last_day_of_month as month
+    from foundational.finance.dim_date
+    where 
+        the_date >= '2024-01-01'
+        and the_date <= current_date
+),
+
+panel as (
+    select 
+        dates_.month,
+        accounts.instance_account_id,
+        accounts.instance_account_created_date,
+        accounts.win_date,
+        accounts.is_startup_program,
+        accounts.is_direct_buy,
+        accounts.sales_model_at_win,
+        deleted_accounts_.first_deleted_date
+    from dates dates_
+    cross join presentation.growth_analytics.trial_accounts accounts
+    left join deleted_accounts deleted_accounts_
+        on accounts.instance_account_id = deleted_accounts_.instance_account_id
+    where 
+        date_trunc(month, accounts.instance_account_created_date) <= dates_.month
+        --- Not converted or converted in same period/future periods
+        and (
+             accounts.win_date is null
+             or (date_trunc(month, win_date) >= date_trunc(month, dates_.month)
+                 and accounts.sales_model_at_win = 'Self-service')
+            )
+        -- Non deleted or deleted in the future
+        and (
+            deleted_accounts_.first_deleted_date is null
+            or deleted_accounts_.first_deleted_date > dates_.month
+        )
+        and is_direct_buy = False
+),
+
+conditions as (
+    select
+        month,
+        --is_deleted,
+        case 
+            when date_trunc(month, win_date) = date_trunc(month, month) and is_startup_program then '0. Startup program'
+            when date_trunc(month, win_date) = date_trunc(month, month) and datediff(day, instance_account_created_date::date, win_date) <= 15 then '1. 0 - 15 days'
+            when date_trunc(month, win_date) = date_trunc(month, month) and datediff(day, instance_account_created_date::date, win_date) <= 30 then '2. 15 - 30 days'
+            when date_trunc(month, win_date) = date_trunc(month, month) and datediff(day, instance_account_created_date::date, win_date) <= 100 then '3. 30 - 100 days'
+            when date_trunc(month, win_date) = date_trunc(month, month) and datediff(day, instance_account_created_date::date, win_date) > 100 then '4. More than 100 days'
+            when date_trunc(month, win_date) > date_trunc(month, month) then '5. Win in future'
+            when win_date is null then null
+            else '6. Other'
+        end as win_type,
+        case 
+            when win_type is not null and win_type not in ('5. Win in future', '6. Other') then win_type
+            when is_startup_program then '0. Startup program'
+            when datediff(day, instance_account_created_date, month) <= 15 then '1. 0 - 15 days'
+            when datediff(day, instance_account_created_date, month) <= 30 then '2. 15 - 30 days'
+            when datediff(day, instance_account_created_date, month) <= 100 then '3. 30 - 100 days'
+            when datediff(day, instance_account_created_date, month) > 100 then '4. More than 100 days'
+            else 'Other'
+        end as cohort,
+        count(*) tot_obs,
+        count(distinct instance_account_id) as unique_obs,
+        count(distinct 
+                case 
+                    when 
+                        date_trunc(month, win_date) = date_trunc(month, month) 
+                    then instance_account_id 
+                end) as wins
+    from panel
+    group by all
+)
+
+
+select *
+from conditions
+where month >= '2024-01-01'
+order by 1, 2, 3
+
+
+
+
+
+
+select 
+    month,
+    cohort,
+    win_type,
+    instance_account_id,
+    instance_account_created_date,
+    win_date,
+    date_trunc('month', instance_account_created_date) as instance_account_created_date_month,
+    date_trunc('month', win_date) as win_date_month
+from conditions
+where 
+    is_deleted = True
+    and win_date is not null
+    --and month = '2025-07-31'
+
+
+
+
+select *
+from foundational.customer.DIM_INSTANCE_ACCOUNTS_DAILY_SNAPSHOT
+where 
+    INSTANCE_ACCOUNT_IS_DELETED = True
+    and instance_account_id = 18002457
+order by source_snapshot_date
+limit 10
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--- Join all data
 bookings_daily as (
     select
         bookings_.pro_forma_signature_date,
+        billing_cart_loaded_.cart_screen,
+        billing_cart_loaded_.cart_step,
+        billing_cart_loaded_.cart_version,
+        case 
+            when billing_cart_loaded_.origin is null then 'No cart event' 
+            when billing_cart_loaded_.origin in ('trial_welcome_screen', 'direct', 'expired-trial', 'central_admin') then billing_cart_loaded_.origin
+            else 'other origin' 
+        end as origin,
+        billing_cart_loaded_.cart_type,
+        billing_cart_loaded_.max_date as max_date_billing_cart_loaded,
         count(*) as total_wins,
         count(distinct bookings_.crm_account_id) as unique_crm_wins,
         sum(bookings_.total_booking_arr_usd) as total_booking_arr_usd,
@@ -1029,9 +1489,11 @@ bookings_daily as (
         on bookings_.crm_account_id = modal_buy_now_.crm_account_id
     left join modal_see_all_plans modal_see_all_plans_
         on bookings_.crm_account_id = modal_see_all_plans_.crm_account_id
+    left join billing_cart_loaded billing_cart_loaded_
+        on bookings_.crm_account_id = billing_cart_loaded_.crm_account_id
     where
-    bookings_.pro_forma_signature_date >= '2025-05-01'
-    group by 1
+        bookings_.pro_forma_signature_date >= '2025-05-01'
+    group by all
 )
 
 --- Validate results
@@ -1047,6 +1509,60 @@ select
 from bookings_daily
 group by 1
 order by 1 desc
+
+
+
+
+
+
+
+
+joined as (
+    select
+        bookings_.crm_account_id,
+        bookings_.pro_forma_signature_date,
+        bookings_.total_booking_arr_usd,
+        --- Cases for modal interactions
+        case 
+            when modal_buy_now_.crm_account_id is not null and modal_see_all_plans_.crm_account_id is null 
+            then 'buy_now_clicked'
+            when modal_buy_now_.crm_account_id is null and modal_see_all_plans_.crm_account_id is not null 
+            then 'see_all_plans_clicked'
+            when modal_buy_now_.crm_account_id is not null and modal_see_all_plans_.crm_account_id is not null 
+            then 'both_clicked'
+            when modal_buy_now_.crm_account_id is null and modal_see_all_plans_.crm_account_id is null 
+            then 'no_cta_clicked'
+            else 'unknown'
+        end as modal_clicked,
+        billing_cart_loaded_.cart_screen,
+        billing_cart_loaded_.cart_step,
+        billing_cart_loaded_.cart_version,
+        billing_cart_loaded_.origin,
+        billing_cart_loaded_.cart_type,
+        billing_cart_loaded_.max_date as max_date_billing_cart_loaded
+
+    from bookings bookings_
+    left join modal_buy_now modal_buy_now_
+        on bookings_.crm_account_id = modal_buy_now_.crm_account_id
+    left join modal_see_all_plans modal_see_all_plans_
+        on bookings_.crm_account_id = modal_see_all_plans_.crm_account_id
+    left join billing_cart_loaded billing_cart_loaded_
+        on bookings_.crm_account_id = billing_cart_loaded_.crm_account_id
+    where
+        bookings_.pro_forma_signature_date >= '2025-05-01'
+)
+
+select 
+    pro_forma_signature_date,
+    origin,
+    count(*) as total_wins,
+    count(distinct crm_account_id) as unique_crm_wins,
+    sum(total_booking_arr_usd) as total_booking_arr_usd,
+from joined
+where modal_clicked = 'no_cta_clicked'
+group by 1, 2
+order by 1 desc, 2;
+
 
 
 

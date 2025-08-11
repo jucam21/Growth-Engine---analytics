@@ -386,4 +386,13 @@ where
 
 
   
+select distinct
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as created_timestamp,
+    standard_experiment_account_event_name,
+    standard_experiment_name,
+from propagated_cleansed.pda.base_standard_experiment_account_events
+where 
+    lower(standard_experiment_name) like '%plan_recommendation%'
+
+
     
