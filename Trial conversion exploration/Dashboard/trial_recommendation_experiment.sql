@@ -492,6 +492,8 @@ where
 
 
 
+
+
 --- Checking in participation table
 select 
     convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as created_timestamp_adj,
@@ -501,7 +503,7 @@ select
 from propagated_cleansed.pda.base_standard_experiment_account_participations
 where 
     convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-10'
-    --and instance_account_id in (25614011, 25614012)
+    and instance_account_id in (25614011, 25614012)
 order by convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) desc
 limit 100
 
@@ -518,8 +520,27 @@ select
 from propagated_cleansed.pda.base_standard_experiment_account_events
 where 
     convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-10'
-    --and instance_account_id in (25614011, 25614012)
+    and instance_account_id in (25614011, 25614012)
 order by convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) desc
+limit 100
+
+
+
+
+--- Events fired
+select 
+    standard_experiment_name,
+    standard_experiment_account_event_name,
+    count(*) as total_events,
+    min(convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)) as first_event_time,
+    max(convert_timezone('UTC', 'America/Los_Angeles', created_timestamp)) as last_event_time
+    
+from propagated_cleansed.pda.base_standard_experiment_account_events
+where 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-10'
+    and instance_account_id in (25614011, 25614012)
+group by all
+order by 1,2
 limit 100
 
 
