@@ -76,7 +76,7 @@ expt2_raw as (
                 and lower(trials.sales_model_at_win) = 'self-service'
                 and is_direct_buy = false
             then 1 else 0
-        end as win_ss,
+        end as win_ss_active,
         case 
             when 
                 trials.win_date is not null 
@@ -84,7 +84,7 @@ expt2_raw as (
                 and lower(trials.sales_model_at_win) = 'self-service'
                 and is_direct_buy = false
             then trials.instance_account_arr_usd_at_win else 0
-        end as win_ss_arr,
+        end as win_ss_active_arr,
         trials.win_date,
         iff(trials.win_date is not null and trials.win_date < dateadd('day', -30, current_date()), 1, 0) won_30d_ago,
         iff(trials.win_date is not null, trials.instance_account_arr_usd_at_win, 0) arr_at_win,
@@ -299,17 +299,17 @@ main as (
         --- Wins from customers interacted modal
         case 
             when 
-                main_.win_ss = 1 
+                main_.win_ss_active = 1 
                 and events_full_list_.click_compare_plans is not null
                 and events_full_list_.click_buy_your_trial is not null
             then 1 else 0 
         end as is_won_2_cta_interacted,
         case 
             when 
-                main_.win_ss = 1 
+                main_.win_ss_active = 1 
                 and events_full_list_.click_compare_plans is not null
                 and events_full_list_.click_buy_your_trial is not null
-            then main_.win_ss_arr else 0 
+            then main_.win_ss_active_arr else 0 
         end as is_won_2_cta_interacted_arr,
         date(main_.expt_created_at_pt) expt_created_date,
         events_full_list_.* exclude (account_id)
