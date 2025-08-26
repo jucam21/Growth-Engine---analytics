@@ -389,12 +389,21 @@ growth_metrics as (
         end as subscription_renewed,
         -- ARR changes
         instance_net_arr_usd_bcv - net_arr_usd_instance as arr_change,
+        ---- Same ARR
+        --case when instance_net_arr_usd_bcv = net_arr_usd_instance then 1 else 0 end as no_change,
+        --case when instance_net_arr_usd_bcv = net_arr_usd_instance then net_arr_usd_instance else 0 end as no_change_arr,
+        ---- Churn ARR
+        --case when (instance_net_arr_usd_bcv = 0 or instance_net_arr_usd_bcv is null) then 1 else 0 end as churn,
+        --case when (instance_net_arr_usd_bcv = 0 or instance_net_arr_usd_bcv is null) then net_arr_usd_instance else 0 end as churn_arr,
+
         -- Same ARR
         case when instance_net_arr_usd_bcv = net_arr_usd_instance and net_arr_usd_instance > 0 then 1 else 0 end as no_change,
         case when instance_net_arr_usd_bcv = net_arr_usd_instance and net_arr_usd_instance > 0 then net_arr_usd_instance else 0 end as no_change_arr,
         -- Churn ARR
         case when (instance_net_arr_usd_bcv = 0 or instance_net_arr_usd_bcv is null) and net_arr_usd_instance > 0 then 1 else 0 end as churn,
         case when (instance_net_arr_usd_bcv = 0 or instance_net_arr_usd_bcv is null) and net_arr_usd_instance > 0 then net_arr_usd_instance else 0 end as churn_arr,
+
+
         -- Expansion ARR
         case when arr_change > 0 and net_arr_usd_instance > 0 then 1 else 0 end as expansion,
         case when arr_change > 0 and net_arr_usd_instance > 0 then arr_change else 0 end as expansion_arr,

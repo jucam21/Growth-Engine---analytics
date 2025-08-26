@@ -271,3 +271,103 @@ select *
 from funnel
 
 
+
+
+--------------------------------------------
+--- Magnitude of the lag
+
+
+select 
+    click.*,
+    case
+        when click.account_id in (24905253, 24853211) then 'Internal Instance'
+        else b.instance_account_derived_type 
+    end as account_category,
+from cleansed.segment_central_admin.GROWTH_ENGINE_COUPONMODAL_WORK_MODAL_2_APPLY_OFFER_CLICK_1_SCD2 click
+left join foundational.customer.dim_instance_accounts_daily_snapshot b
+    on 
+        click.account_id = b.instance_account_id
+        and date(click.original_timestamp) = b.source_snapshot_date
+where account_category != 'Internal Instance' or account_category is null
+
+
+
+--- SAAS table
+select 
+    click.*
+from RAW.SEGMENT_SUPPORT.GROWTH_ENGINE_COUPONMODAL_WORK_MODAL_2_APPLY_OFFER_CLICK_1 click
+where click.account_id not in (24905253, 24853211)
+--left join foundational.customer.dim_instance_accounts_daily_snapshot b
+--    on 
+--        click.account_id = b.instance_account_id
+--        and date(click.original_timestamp) = b.source_snapshot_date
+--where account_category != 'Internal Instance' or account_category is null
+
+
+
+
+--- Checking if C/C rates are accurate
+with redeemed as (
+    select
+        *,
+        'Redeemed' as data_type
+    from sandbox.juan_salgado.ge_dashboard_test
+    where 
+        unique_count_work_modal_2_click is not null
+        and (account_category != 'Internal Instance' or account_category is null)
+),
+
+not_redeemed as (
+    select 
+        a.*,
+        row_number() over (
+            partition by a.account_id
+            order by a.loaded_date desc
+        ) as rank,
+        'Not redeemed' as data_type
+    from sandbox.juan_salgado.ge_dashboard_test as a
+    left join redeemed as b
+    on a.account_id = b.account_id
+    where 
+        b.account_id is null
+        and (a.account_category != 'Internal Instance' or a.account_category is null)
+    qualify rank = 1
+),
+
+full_list_raw as (
+    select account_id, data_type
+    from redeemed
+    union all
+    select account_id, data_type
+    from not_redeemed
+),
+
+import_finance_recurring_revenue_instance_arr as (
+    select
+        snapshot_bcv.instance_account_id as zendesk_account_id,
+        sum(finance.net_arr_usd) as net_arr_usd
+    from foundational.finance.fact_recurring_revenue_bcv_enriched as finance
+        left join
+            foundational.customer.entity_mapping_daily_snapshot_bcv
+                as snapshot_bcv
+            on finance.billing_account_id = snapshot_bcv.billing_account_id
+    group by all
+),
+
+full_list_finance as (
+    select 
+        a.*,
+        b.net_arr_usd
+    from full_list_raw a
+    left join import_finance_recurring_revenue_instance_arr b
+        on a.account_id = b.zendesk_account_id
+)
+
+select 
+    data_type,
+    count(*) tot_obs,
+    sum(case when net_arr_usd = 0 or net_arr_usd is null then 1 else 0 end) churned
+from full_list_finance
+group by 1
+order by 1
+
