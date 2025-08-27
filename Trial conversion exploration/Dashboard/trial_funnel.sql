@@ -2607,6 +2607,44 @@ order by 1
 
 
 
+--------------------------------------------
+--- Testing if events are firing ok
+
+
+select 
+    convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) date_adj,
+    *
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
+order by 1
+
+
+
+
+
+select 
+    count(*)
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
+order by 1
+
+
+select *
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+order by convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) desc
+limit 10
+
+
+select convert_timezone('UTC', 'America/Los_Angeles', max(dbt_updated_at)) 
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+
+
+
+
+select convert_timezone('UTC', 'America/Los_Angeles', max(original_timestamp)) 
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where date(original_timestamp) <= '2025-08-31'
+
 
 
 
