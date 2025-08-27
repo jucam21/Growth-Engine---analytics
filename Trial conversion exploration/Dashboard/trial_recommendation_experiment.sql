@@ -1477,3 +1477,118 @@ where
     convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-10'
 
 
+
+
+
+
+-------------------------------------------------
+--- Check outliers by ARR
+
+
+with expt as (
+    select distinct 
+        standard_experiment_name experiment_name, 
+        case 
+            when standard_experiment_participation_variation = 'treatment' then 'V1: Variant' 
+            when standard_experiment_participation_variation = 'control' then 'V0: Control' 
+            else NULL 
+        end as variation, 
+        instance_account_id, 
+        convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as expt_created_at_pt
+    from propagated_cleansed.pda.base_standard_experiment_account_participations participations
+    where 
+        lower(standard_experiment_name) like '%persistent_buy_plan_recommendations%'
+        and standard_experiment_participation_variation in ('treatment', 'control')
+        --- After launch date. Using date to remove testing accounts
+        and convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-11'
+),
+
+wins as (
+    select 
+        date_trunc(quarter, accounts.win_date) as win_quarter,
+        date_trunc(month, accounts.win_date) as win_month,
+        expt_.experiment_name,
+        expt_.variation,
+        count(*) total_wins,
+        count(distinct accounts.instance_account_id) unique_wins,
+        sum(accounts.instance_account_arr_usd_at_win) total_arr_wins,
+        --- Bin ARR to measure outliers
+        case 
+            when accounts.instance_account_arr_usd_at_win <= 500 then '1. Sub 0.5K'
+            when accounts.instance_account_arr_usd_at_win <= 1000 then '2. 0.5K - 1K'
+            when accounts.instance_account_arr_usd_at_win <= 5000 then '3. 1K - 5K'
+            when accounts.instance_account_arr_usd_at_win <= 10000 then '4. 5K - 10K'
+            when accounts.instance_account_arr_usd_at_win <= 15000 then '5. 10K - 15K'
+            when accounts.instance_account_arr_usd_at_win <= 20000 then '6. 15K - 20K'
+            when accounts.instance_account_arr_usd_at_win <= 25000 then '7. 20K - 25K'
+            when accounts.instance_account_arr_usd_at_win > 25000 then '8. Above 25K'
+            else 'Unknown'
+        end as arr_band
+    from presentation.growth_analytics.trial_accounts accounts
+    left join expt expt_
+        on accounts.instance_account_id = expt_.instance_account_id
+    left join foundational.customer.dim_instance_accounts_daily_snapshot dim_instance
+        on accounts.instance_account_id = dim_instance.instance_account_id
+        and dim_instance.source_snapshot_date = dateadd(day, 1, win_date) --day after win
+    where 
+        accounts.instance_account_id != 25628656 -- To ensure data will match with main analysis
+        and accounts.is_direct_buy = False
+        and accounts.sales_model_at_win = 'Self-service'
+        and accounts.win_date >= '2025-01-01'
+        --- Using the same conditions as the experiment to clasify wins
+        and (expt_.variation in ('V0: Control', 'V1: Variant')
+        and (
+            accounts.trial_type not in ('Chat', 'Sell') 
+            and (
+                dim_instance.instance_account_derived_type in ('Active Trial', 'Expired Trial', 'Paying Instance', 'Cancelled', 'Deleted', 'Suspended')
+                or dim_instance.instance_account_derived_type is null) -- to include new accounts not yet classified)
+            ) 
+            or expt_.variation is null
+            ) -- to include wins from accounts not in the experiment
+    group by all
+),
+
+wins_list as (
+    select distinct accounts.instance_account_id
+    from presentation.growth_analytics.trial_accounts accounts
+    left join expt expt_
+        on accounts.instance_account_id = expt_.instance_account_id
+    left join foundational.customer.dim_instance_accounts_daily_snapshot dim_instance
+        on accounts.instance_account_id = dim_instance.instance_account_id
+        and dim_instance.source_snapshot_date = dateadd(day, 1, win_date) --day after win
+    where 
+        accounts.instance_account_id != 25628656 -- To ensure data will match with main analysis
+        and accounts.is_direct_buy = False
+        and accounts.sales_model_at_win = 'Self-service'
+        and accounts.win_date >= '2025-01-01'
+        and accounts.trial_type not in ('Chat', 'Sell') 
+        and (dim_instance.instance_account_derived_type in ('Active Trial', 'Expired Trial', 'Paying Instance', 'Cancelled', 'Deleted', 'Suspended')
+             or dim_instance.instance_account_derived_type is null) -- to include new accounts not yet classified
+        and expt_.variation = 'V0: Control'
+)
+
+
+select 
+    variation, 
+    sum(total_wins) as total_wins,
+    sum(unique_wins) as unique_wins
+from wins
+group by 1
+order by 1 desc
+
+
+
+select *, convert_timezone('UTC', 'America/Los_Angeles', current_timestamp) as updated_at
+from main
+limit 10
+
+
+
+
+
+
+
+
+
+
+
