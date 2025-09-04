@@ -1590,5 +1590,191 @@ limit 10
 
 
 
+------------------------------------------------------------
+--- Zuora coupons
+
+
+with expt as (
+    select distinct 
+        standard_experiment_name experiment_name, 
+        case 
+            when standard_experiment_participation_variation = 'treatment' then 'V1: Variant' 
+            when standard_experiment_participation_variation = 'control' then 'V0: Control' 
+            else NULL 
+        end as variation, 
+        instance_account_id, 
+        convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as expt_created_at_pt
+    from propagated_cleansed.pda.base_standard_experiment_account_participations participations
+    where 
+        lower(standard_experiment_name) like '%persistent_buy_plan_recommendations%'
+        and standard_experiment_participation_variation in ('treatment')
+        --- After launch date. Using date to remove testing accounts
+        and convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-11'
+),
+
+wins as (
+    select 
+        expt_.*,
+        accounts.win_date,
+        accounts.instance_account_arr_usd_at_win,
+        accounts.sales_model_at_win,
+        accounts.is_direct_buy
+    from expt expt_
+    left join presentation.growth_analytics.trial_accounts accounts
+        on accounts.instance_account_id = expt_.instance_account_id
+),
+
+redeemed_zuora as (
+    select 
+        mapping.instance_account_id,
+        min(zuora.created_date) as coupon_applied_date,
+        zuora.up_to_periods,
+        zuora.billing_period,
+        zuora.charge_model,
+        tiers.currency,
+        tiers.discount_amount,
+        tiers.discount_percentage,
+        zuora.description,
+        wins_.variation,
+        wins_.instance_account_arr_usd_at_win,
+        wins_.sales_model_at_win,
+        wins_.win_date
+    from cleansed.zuora.zuora_rate_plan_charges_bcv as zuora
+    left join
+        foundational.customer.entity_mapping_daily_snapshot_bcv as mapping
+        on zuora.account_id = mapping.billing_account_id
+    left join cleansed.zuora.zuora_subscriptions_bcv as subscription
+        on zuora.subscription_id = subscription.id
+    left join cleansed.zuora.zuora_rate_plan_charge_tiers_bcv as tiers
+        on zuora.id = tiers.rate_plan_charge_id
+    inner join wins wins_
+        on 
+            mapping.instance_account_id = wins_.instance_account_id
+            --- Coupon applied within 15 days of win
+            and zuora.created_date <= dateadd(day, 15, wins_.win_date)
+            and zuora.created_date >= dateadd(day, -15, wins_.win_date) 
+    where
+        zuora.is_last_segment = true
+        and subscription.status in ('Active', 'Expired')
+        and zuora.created_date >= '2025-08-01'
+        --and lower(zuora.description) like '%get%'
+    group by all
+)
+
+
+select 
+    description,
+    count(*) as total_records,
+    count(distinct instance_account_id) as unique_accounts,
+from redeemed_zuora
+group by 1
+order by 3 desc
+
+
+
+select *, convert_timezone('UTC', 'America/Los_Angeles', current_timestamp) as updated_at
+from redeemed_zuora
+order by 1
+
+
+
+
+
+--- Manually validate discount cases
+
+
+with modal_load as (
+    select
+        account_id,
+        offer_id,
+        plan_name,
+        preview_state,
+        source,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
+        count(*) as total_count
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 load
+    group by all
+),
+
+wins as (
+    select 
+        modal_load_.*,
+        accounts.win_date,
+        accounts.instance_account_arr_usd_at_win,
+        accounts.sales_model_at_win,
+        accounts.core_base_plan_at_win
+    from modal_load modal_load_
+    left join presentation.growth_analytics.trial_accounts accounts
+        on modal_load_.account_id = accounts.instance_account_id
+    where 
+        accounts.win_date >= '2025-01-01'
+        and accounts.is_direct_buy = False
+        and accounts.sales_model_at_win = 'Self-service'
+)
+
+select *
+from wins
+where 
+    date >= '2025-08-11'
+    and offer_id = '01JYH0M68B9VVK05W81XAJ6PMJ'
+    and win_date is not null
+    and core_base_plan_at_win = 'Support Team'
+
+
+
+
+
+select 
+    sales_model_at_win,
+    count(*) as total_records,
+    count(distinct instance_account_id) as unique_accounts,
+from redeemed_zuora
+group by 1
+order by 2 desc
+
+
+
+-- 25674979
+
+
+
+
+
+select 
+    finance.service_date,
+    finance.billing_account_id,
+    finance.list_price_arr_usd,
+    finance.gross_arr_usd,
+    finance.net_arr_usd,
+    --- Discounts
+    finance.temp_discount_arr_usd,
+    finance.recurring_discount_arr_usd,
+    finance.list_price_discount_arr_usd,
+    finance.nonrecurring_discount_arr_usd
+from foundational.customer.entity_mapping_daily_snapshot as mapping
+left join foundational.finance.fact_recurring_revenue_daily_snapshot_enriched finance
+    on 
+        mapping.billing_account_id = finance.billing_account_id
+        and finance.service_date >= date('2025-08-01')
+where 
+    --mapping.instance_account_id = 25623567
+    --mapping.instance_account_id = 25599833
+    --mapping.instance_account_id = 25572984
+    --mapping.instance_account_id = 25641812
+    --mapping.instance_account_id = 25674979
+    --mapping.instance_account_id = 25673658
+    mapping.instance_account_id = 25623567
+order by mapping.instance_account_id, finance.service_date
+
+
+
+
+
+select max(win_date)
+from presentation.growth_analytics.trial_accounts
+
+
 
 

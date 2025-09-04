@@ -507,6 +507,31 @@ limit 100
 
 
 
+select max(source_snapshot_date) as max_date
+from presentation.product_analytics.paid_customer_universe_daily_snapshot
+
+
+select
+    date_trunc('day', original_timestamp) as event_date,
+    count(*) as total_obs,
+    count(distinct account_id) as unique_accounts
+from cleansed.segment_support.growth_engine_trial_cta_1_scd2 
+group by 1
+order by 1 desc
+limit 15
+
+
+
+
+select
+    date_trunc('day', original_timestamp) as event_date,
+    count(*) as total_obs,
+    count(distinct account_id) as unique_accounts
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+group by 1
+order by 1 desc
+limit 15
+
 
 
 
