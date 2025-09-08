@@ -1765,7 +1765,8 @@ where
     --mapping.instance_account_id = 25641812
     --mapping.instance_account_id = 25674979
     --mapping.instance_account_id = 25673658
-    mapping.instance_account_id = 25623567
+    --mapping.instance_account_id = 25623567
+    mapping.instance_account_id = 25588201
 order by mapping.instance_account_id, finance.service_date
 
 

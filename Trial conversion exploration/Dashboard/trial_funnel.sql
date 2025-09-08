@@ -13,6 +13,7 @@ with accounts as (
         trial_accounts.instance_account_id,
         trial_accounts.instance_account_created_date,
         trial_accounts.win_date,
+        trial_accounts.crm_account_id,
         case 
             when 
                 trial_accounts.win_date is not null 
@@ -47,6 +48,7 @@ prompt_load as (
 modal_load as (
     select
         account_id,
+        a.crm_account_id,
         offer_id,
         plan_name,
         preview_state,
@@ -155,6 +157,7 @@ segment_events_all_tmp as (
     select
         modal_load.date as loaded_date,
         modal_load.account_id,
+        modal_load.crm_account_id,
         case when modal_load.offer_id is null then 'No Offer' else modal_load.offer_id end as offer_id,
         modal_load.plan_name,
         modal_load.preview_state,
@@ -241,6 +244,8 @@ wins as (
 segment_events_all as (
     select
         segment.*,
+        crms.crm_account_name,
+        crms.pro_forma_market_segment,
         wins.win_date,
         wins.instance_account_arr_usd_at_win,
         datediff(day, segment.loaded_date::date, wins.win_date::date) as days_to_win,
@@ -281,10 +286,107 @@ segment_events_all as (
     left join wins
         on segment.account_id = wins.instance_account_id
         and date(segment.loaded_date) = date(wins.win_date)
+    left join foundational.customer.dim_crm_accounts_daily_snapshot crms
+        on 
+            segment.crm_account_id = crms.crm_account_id
+            and date(segment.loaded_date) = crms.source_snapshot_date
+
 )
 
 select *, CONVERT_TIMEZONE('UTC', 'America/Los_Angeles', CURRENT_TIMESTAMP) as updated_at
 from segment_events_all;
+
+
+
+
+------------------------------------------------
+--- 1.1 SMB list of accounts
+
+--- Define columns
+
+select distinct
+    CONVERT_TIMEZONE('UTC', 'America/Los_Angeles', CURRENT_TIMESTAMP) as updated_at,
+    loaded_timestamp,
+    date(loaded_date) loaded_day,
+    crm_account_id,
+    crm_account_name,
+    account_id as instance_account_id,
+    pro_forma_market_segment, 
+    offer_id, 
+    plan_name, 
+    preview_state, 
+    source,
+    BUY_NOW_AGENT_COUNT, BUY_NOW_BILLING_CYCLE, BUY_NOW_OFFER_ID, BUY_NOW_PLAN, BUY_NOW_PLAN_NAME, BUY_NOW_PRODUCT, BUY_NOW_PROMO_CODE, 
+    UNIQUE_COUNT_PROMPT_LOAD as is_cta_loaded,
+    UNIQUE_COUNT_MODAL_LOADS as is_modal_loaded,
+    UNIQUE_COUNT_MODAL_LOADS_CTA as is_modal_loaded_cta,
+    UNIQUE_COUNT_MODAL_LOADS_AUTO_TRIGGER as is_modal_loaded_auto_trigger,
+    UNIQUE_COUNT_MODAL_DISMISS as is_modal_dismissed,
+    UNIQUE_COUNT_MODAL_BUY_NOW as is_modal_buy_now_clicked,
+    UNIQUE_COUNT_MODAL_SEE_ALL_PLANS as is_modal_see_all_plans_clicked,
+    win_date,
+    INSTANCE_ACCOUNT_ARR_USD_AT_WIN,
+from segment_events_all
+where pro_forma_market_segment = 'SMB';
+
+
+
+
+select * --sales_model_at_win, is_direct_buy
+from presentation.growth_analytics.trial_accounts
+where instance_account_id = 25588201
+
+
+
+select distinct pro_forma_market_segment
+from foundational.customer.dim_crm_accounts_daily_snapshot
+where source_snapshot_date = '2025-08-01'
+
+
+
+select *
+from foundational.customer.dim_crm_accounts_daily_snapshot
+where 
+    source_snapshot_date >= '2025-08-01'
+
+
+
+select *
+from foundational.customer.dim_instance_accounts_daily_snapshot
+where 
+    source_snapshot_date >= '2025-08-01'
+    and instance_account_id = 25611419
+
+
+
+select *
+from foundational.customer.entity_mapping_daily_snapshot 
+where 
+    source_snapshot_date >= '2025-07-01'
+    and instance_account_id = 25611419
+
+
+
+
+with wins as (
+    select 
+        trial_accounts.instance_account_id,
+        trial_accounts.win_date,
+        trial_accounts.core_base_plan_at_win,
+        trial_accounts.instance_account_arr_usd_at_win
+    from presentation.growth_analytics.trial_accounts trial_accounts 
+    where 
+        trial_accounts.win_date is not null
+        and trial_accounts.sales_model_at_win <> 'Assisted'
+        and trial_accounts.is_direct_buy = FALSE  
+        and trial_accounts.win_date >= '2025-06-01'
+)
+
+select *
+from wins
+where instance_account_id = 25588201
+
+
 
 
 --- Validating results

@@ -371,3 +371,34 @@ from full_list_finance
 group by 1
 order by 1
 
+
+
+
+
+select *
+from sandbox.juan_salgado.ge_dashboard_test
+
+
+
+select column_name
+from information_schema.columns
+where table_schema = 'JUAN_SALGADO'
+    and table_name = 'GE_DASHBOARD_TEST'
+order by ordinal_position;
+
+
+
+
+
+
+
+select column_name
+from information_schema.columns
+where table_schema = 'JUAN_SALGADO'
+    and table_name = 'GE_GROWTH_METRICS_TEST'
+order by ordinal_position;
+
+
+
+
+
