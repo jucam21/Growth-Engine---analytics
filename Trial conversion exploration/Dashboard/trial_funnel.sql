@@ -2749,4 +2749,41 @@ where date(original_timestamp) <= '2025-08-31'
 
 
 
+select 
+    count(*) as tot_obs,
+    count(distinct account_id) as unique_accounts
+from cleansed.segment_support.growth_engine_trial_cta_1_scd2
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
 
+
+
+select 
+    count(*) as tot_obs,
+    count(distinct account_id) as unique_accounts
+from cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
+
+
+
+
+select 
+    count(*) as tot_obs,
+    count(distinct account_id) as unique_accounts
+from cleansed.segment_support.growth_engine_trial_cta_variant_b_see_all_plans_scd2
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
+
+
+
+select 
+    source,
+    count(*) as tot_obs,
+    count(distinct account_id) as unique_accounts
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
+group by 1
+
+
+
+
+select max(win_date)
+from presentation.growth_analytics.trial_accounts

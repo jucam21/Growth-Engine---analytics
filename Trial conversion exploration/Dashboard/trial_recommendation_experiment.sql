@@ -1785,5 +1785,41 @@ from presentation.growth_analytics.trial_accounts
 
 
 
+select 
+    predictions.predicted_sku_1,
+    predictions.predicted_plan_1,
+    count(*)
+from functional.growth_engine.dim_growth_engine_customer_accounts accounts
+left join functional.growth_engine.dim_growth_engine_trial_expansion_predictions predictions
+    on accounts.zendesk_account_id = predictions.instance_account_id
+where 
+    is_trial = TRUE
+    and trial_age >= 6
+    and trial_employee_count_range in ('1-9', '10-49')
+    and predictions.predicted_conversion_probability < 0.7
+    and lower(predictions.predicted_sku_1) = 'zendesk suite'
+    --and lower(predictions.predicted_plan_1) = 'team'
+group by all
+order by 3 desc
 
+
+
+
+
+
+select distinct trial_employee_count_range
+from functional.growth_engine.dim_growth_engine_customer_accounts
+
+
+select min(source_snapshot_date), max(source_snapshot_date)
+from functional.growth_engine.dim_growth_engine_trial_expansion_predictions
+
+
+select 
+    instance_account_id,
+    count(*)
+from functional.growth_engine.dim_growth_engine_trial_expansion_predictions
+group by 1
+order by 2 desc
+limit 10
 
