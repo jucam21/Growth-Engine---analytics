@@ -2425,6 +2425,75 @@ where a.max_suite_seats is null
 
 ----- Validate data in table
 
+--- Check new segment events
+
+
+select 
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as min_timestamp,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as max_timestamp,
+    count(*) as total_count,
+    count(distinct account_id) as total_count_distinct
+from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_load_1_scd2
+
+
+
+select 
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as min_timestamp,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as max_timestamp,
+    count(*) as total_count,
+    count(distinct account_id) as total_count_distinct
+from cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
+
+
+
+
+
+
+
+select 
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as min_timestamp,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as max_timestamp,
+    count(*) as total_count,
+    count(distinct account_id) as total_count_distinct
+from dev_cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_load_1_scd2
+
+
+
+select 
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as min_timestamp,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as max_timestamp,
+    count(*) as total_count,
+    count(distinct account_id) as total_count_distinct
+from cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
+
+
+
+
+
+
+
+select 
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as min_timestamp,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as max_timestamp,
+    count(*) as total_count,
+    count(distinct account_id) as total_count_distinct
+from propagated_cleansed.central_admin.growth_engine_adminhomebanner1_prompt_load_1_scd2
+
+
+
+select 
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as min_timestamp,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as max_timestamp,
+    count(*) as total_count,
+    count(distinct account_id) as total_count_distinct
+from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
+
+
+
+
+
+
+
 --- Only 1 renewal showing
 
 with follow_up_subscription as (

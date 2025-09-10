@@ -12,7 +12,166 @@ create or replace table sandbox.juan_salgado.ge_dashboard_test as
 -- Unique count: uses account_id and will use function count distinct in Tableau
 -- Total count: counts total interactions per day and will use function sum in Tableau
 -- Prompt events
-with prompt_load as (
+
+--- Added UNION code to take into account both segment event sources
+
+with prompt_load_union as (
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+        from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_load_1_scd2
+    union all
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
+    -- Date when support segment started capturing data
+    where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
+),
+
+prompt_click_union as (
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp  from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_claim_offer_click_1_scd2
+    union all
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_claim_offer_click_1_scd2
+    where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
+),
+
+prompt_dismiss_union as (
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp  from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_dismiss_offer_1_scd2
+    union all
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_dismiss_offer_1_scd2
+    where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
+),
+
+work_modal_1_click_union as (
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_claim_offer_click_2_scd2
+    union all
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_claim_offer_click_2_scd2
+    where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
+),
+
+work_modal_1_dismiss_union as (
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_dismiss_offer_1_scd2
+    union all
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_dismiss_offer_1_scd2
+    where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
+),
+
+work_modal_2_click_union as (
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2
+    union all
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2
+    where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
+),
+
+work_modal_2_dismiss_union as (
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_work_modal_2_dismiss_offer_1_scd2
+    union all
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_work_modal_2_dismiss_offer_1_scd2
+    where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
+),
+
+work_modal_2_go_back_union as (
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_go_back_scd2
+    union all
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_go_back_scd2
+    where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
+),
+
+follow_up_close_union as (
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_close_scd2
+    union all
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_close_scd2
+    where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
+),
+
+follow_up_dismiss_union as (
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_dismiss_scd2
+    union all
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_dismiss_scd2
+    where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
+),
+
+follow_up_subscription_union as (
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_subscription_details_scd2
+    union all
+    select account_id,
+        offer_id,
+        promo_code_id,
+        original_timestamp 
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_subscription_details_scd2
+    where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
+),
+
+prompt_load as (
     select
         account_id,
         offer_id,
@@ -21,7 +180,7 @@ with prompt_load as (
         date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_load_1_scd2
+        prompt_load_union
     group by all
 ),
 prompt_click as (
@@ -33,7 +192,7 @@ prompt_click as (
         date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_claim_offer_click_1_scd2
+        prompt_click_union
     group by all
 ),
 prompt_dismiss as (
@@ -45,7 +204,7 @@ prompt_dismiss as (
         date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_dismiss_offer_1_scd2
+        prompt_dismiss_union
     group by all
 ),
 work_modal_1_click as (
@@ -57,7 +216,7 @@ work_modal_1_click as (
         date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        cleansed.segment_central_admin.growth_engine_couponmodal_claim_offer_click_2_scd2
+        work_modal_1_click_union
     group by all
 ),
 work_modal_1_dismiss as (
@@ -69,7 +228,7 @@ work_modal_1_dismiss as (
         date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        cleansed.segment_central_admin.growth_engine_couponmodal_dismiss_offer_1_scd2
+        work_modal_1_dismiss_union
     group by all
 ),
 work_modal_2_click as (
@@ -81,7 +240,7 @@ work_modal_2_click as (
         date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        cleansed.segment_central_admin.growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2
+        work_modal_2_click_union
     group by all
 ),
 work_modal_2_dismiss as (
@@ -93,7 +252,7 @@ work_modal_2_dismiss as (
         date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        cleansed.segment_central_admin.growth_engine_couponmodal_work_modal_2_dismiss_offer_1_scd2
+        work_modal_2_dismiss_union
     group by all
 ),
 work_modal_2_go_back as (
@@ -105,7 +264,7 @@ work_modal_2_go_back as (
         date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        cleansed.segment_central_admin.growth_engine_couponmodal_go_back_scd2
+        work_modal_2_go_back_union
     group by all
 ),
 follow_up_close as (
@@ -117,7 +276,7 @@ follow_up_close as (
         date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_close_scd2
+        follow_up_close_union
     group by all
 ),
 follow_up_dismiss as (
@@ -129,7 +288,7 @@ follow_up_dismiss as (
         date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_dismiss_scd2
+        follow_up_dismiss_union
     group by all
 ),
 follow_up_subscription as (
@@ -141,7 +300,7 @@ follow_up_subscription as (
         date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_subscription_details_scd2
+        follow_up_subscription_union
     group by all
 ),
 segment_events_all_tmp as (
