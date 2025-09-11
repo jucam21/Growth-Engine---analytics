@@ -1823,3 +1823,94 @@ group by 1
 order by 2 desc
 limit 10
 
+
+
+
+
+-----------------------------------------------------
+--- Check new recommendation wins
+
+
+
+
+--- Wins
+
+select
+    win_date,
+    count(*) as total_wins,
+from presentation.growth_analytics.trial_accounts
+where 
+    win_date >= '2025-09-01'
+    and is_direct_buy = False
+    and sales_model_at_win = 'Self-service'
+group by 1
+order by 1
+
+
+
+
+--- Verified trials
+select
+    first_verified_date,
+    count(*) as total_wins,
+from presentation.growth_analytics.trial_accounts
+where 
+    first_verified_date >= '2025-07-01'
+group by 1
+order by 1
+
+
+
+
+--- Created trials
+select
+    INSTANCE_ACCOUNT_CREATED_DATE,
+    count(*) as total_wins,
+from presentation.growth_analytics.trial_accounts
+where 
+    INSTANCE_ACCOUNT_CREATED_DATE >= '2025-07-01'
+group by 1
+order by 1
+
+
+
+
+
+
+
+with expt as (
+    select distinct 
+        standard_experiment_name experiment_name, 
+        case 
+            when standard_experiment_participation_variation = 'treatment' then 'V1: Variant' 
+            when standard_experiment_participation_variation = 'control' then 'V0: Control' 
+            else NULL 
+        end as variation, 
+        instance_account_id, 
+        convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as expt_created_at_pt
+    from propagated_cleansed.pda.base_standard_experiment_account_participations participations
+    where 
+        lower(standard_experiment_name) like '%persistent_buy_plan_recommendations%'
+        and standard_experiment_participation_variation in ('treatment', 'control')
+        --- After launch date. Using date to remove testing accounts
+        and convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-09-09'
+)
+
+select 
+    expt_.variation,
+    count(*) as total_accounts,
+    --count(distinct expt_.instance_account_id) as unique_accounts,
+    count(distinct accounts.instance_account_id) as accounts_found,
+    count(case when accounts.win_date is not null then accounts.instance_account_id end) as accounts_with_wins
+from expt expt_
+left join presentation.growth_analytics.trial_accounts accounts
+    on expt_.instance_account_id = accounts.instance_account_id
+group by 1
+
+
+
+
+
+
+
+

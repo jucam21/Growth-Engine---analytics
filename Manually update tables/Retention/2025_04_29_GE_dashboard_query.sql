@@ -22,11 +22,13 @@ with prompt_load_union as (
         original_timestamp 
         from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_load_1_scd2
     union all
-    select account_id,
+    select instance.instance_account_id as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
+    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2 segment
+    left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
+        on segment.account_id = instance.agent_id
     -- Date when support segment started capturing data
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
@@ -37,11 +39,13 @@ prompt_click_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_claim_offer_click_1_scd2
     union all
-    select account_id,
+    select instance.instance_account_id as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_claim_offer_click_1_scd2
+    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_claim_offer_click_1_scd2 segment
+    left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
+        on segment.account_id = instance.agent_id
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
@@ -51,11 +55,13 @@ prompt_dismiss_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_dismiss_offer_1_scd2
     union all
-    select account_id,
+    select instance.instance_account_id as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_dismiss_offer_1_scd2
+    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_dismiss_offer_1_scd2 segment
+    left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
+        on segment.account_id = instance.agent_id
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
@@ -65,11 +71,13 @@ work_modal_1_click_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_claim_offer_click_2_scd2
     union all
-    select account_id,
+    select instance.instance_account_id as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_claim_offer_click_2_scd2
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_claim_offer_click_2_scd2 segment
+    left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
+        on segment.account_id = instance.agent_id
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
@@ -79,11 +87,13 @@ work_modal_1_dismiss_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_dismiss_offer_1_scd2
     union all
-    select account_id,
+    select instance.instance_account_id as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_dismiss_offer_1_scd2
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_dismiss_offer_1_scd2 segment
+    left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
+        on segment.account_id = instance.agent_id
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
@@ -93,11 +103,13 @@ work_modal_2_click_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2
     union all
-    select account_id,
+    select instance.instance_account_id as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2 segment
+    left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
+        on segment.account_id = instance.agent_id
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
@@ -107,11 +119,13 @@ work_modal_2_dismiss_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_work_modal_2_dismiss_offer_1_scd2
     union all
-    select account_id,
+    select instance.instance_account_id as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_work_modal_2_dismiss_offer_1_scd2
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_work_modal_2_dismiss_offer_1_scd2 segment
+    left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
+        on segment.account_id = instance.agent_id
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
@@ -121,11 +135,13 @@ work_modal_2_go_back_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_go_back_scd2
     union all
-    select account_id,
+    select instance.instance_account_id as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_go_back_scd2
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_go_back_scd2 segment
+    left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
+        on segment.account_id = instance.agent_id
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
@@ -135,11 +151,13 @@ follow_up_close_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_close_scd2
     union all
-    select account_id,
+    select instance.instance_account_id as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_close_scd2
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_close_scd2 segment
+    left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
+        on segment.account_id = instance.agent_id
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
@@ -149,11 +167,13 @@ follow_up_dismiss_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_dismiss_scd2
     union all
-    select account_id,
+    select instance.instance_account_id as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_dismiss_scd2
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_dismiss_scd2 segment
+    left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
+        on segment.account_id = instance.agent_id
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
@@ -163,11 +183,13 @@ follow_up_subscription_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_subscription_details_scd2
     union all
-    select account_id,
+    select instance.instance_account_id as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_subscription_details_scd2
+    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_subscription_details_scd2 segment
+    left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
+        on segment.account_id = instance.agent_id
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
@@ -431,7 +453,7 @@ segment_events_all_states as (
         b.instance_account_state as account_state,
         -- Harcoding these instance as internal instances
         case 
-            when a.account_id in (24905253, 24853211) then 'Internal Instance'
+            when a.account_id in (24905253, 24853211, 25627661, 25439461, 25627671) then 'Internal Instance'
             else b.instance_account_derived_type 
         end as account_category,
         datediff(

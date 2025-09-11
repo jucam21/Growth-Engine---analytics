@@ -2489,7 +2489,12 @@ select
 from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
 
 
-
+select 
+    convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) as original_timestamp,
+    account_id
+from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
+order by 1
+limit 1000
 
 
 
