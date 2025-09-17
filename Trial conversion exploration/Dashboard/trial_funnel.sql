@@ -2717,7 +2717,8 @@ select
     convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) date_adj,
     *
 from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
-where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
+--where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-16'
 order by 1
 
 
@@ -2753,7 +2754,8 @@ select
     count(*) as tot_obs,
     count(distinct account_id) as unique_accounts
 from cleansed.segment_support.growth_engine_trial_cta_1_scd2
-where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
+--where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-16'
 
 
 
@@ -2761,7 +2763,8 @@ select
     count(*) as tot_obs,
     count(distinct account_id) as unique_accounts
 from cleansed.segment_support.growth_engine_trial_cta_1_see_all_plans_scd2
-where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
+--where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-26 14:30'
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-16'
 
 
 
@@ -2787,3 +2790,106 @@ group by 1
 
 select max(win_date)
 from presentation.growth_analytics.trial_accounts
+
+
+
+
+--- Max update date GE trial recommendation tables
+
+select convert_timezone('UTC', 'America/Los_Angeles', max(dbt_updated_at)) 
+from cleansed.segment_support.growth_engine_trial_cta_1_scd2
+
+
+
+select convert_timezone('UTC', 'America/Los_Angeles', max(dbt_updated_at)) 
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+
+
+
+
+
+select 
+    account_id,
+    count(*) as total_events,
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as first_event,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as last_event
+from cleansed.segment_support.growth_engine_trial_cta_1_scd2
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-16'
+group by 1
+order by 2 desc
+
+
+
+
+select 
+    account_id,
+    count(*) as total_events,
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as first_event,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as last_event
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-16'
+group by 1
+order by 2 desc
+
+
+
+
+
+select 
+    offer_id,
+    count(*) as total_events,
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as first_event,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as last_event
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-10'
+group by 1
+order by 2 desc
+
+
+
+
+
+select 
+    account_id,
+    count(*) as total_events,
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as first_event,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as last_event
+from cleansed.segment_support.growth_engine_trial_cta_1_scd2
+where date_trunc('day', convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) = '2025-09-11'
+group by 1
+order by 2 desc
+
+
+
+
+
+
+
+
+
+select 
+    account_id,
+    count(*) as total_events,
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as first_event,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as last_event
+from RAW.SEGMENT_SUPPORT.GROWTH_ENGINE_TRIAL_CTA_1
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-16'
+group by 1
+order by 2 desc
+
+
+
+
+select 
+    account_id,
+    count(*) as total_events,
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as first_event,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as last_event
+from RAW.SEGMENT_SUPPORT.GROWTH_ENGINE_TRIAL_cta_1_modal_load
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-16'
+group by 1
+order by 2 desc
+
+
+
+
