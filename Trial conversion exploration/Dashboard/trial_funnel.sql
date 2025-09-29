@@ -2709,6 +2709,99 @@ order by 1
 
 
 
+
+--------------------------------------------
+--- Add verified trials & active logins per day
+
+
+with verified_trials as (
+    select distinct
+        trial_create_date, 
+        count(distinct account_id) as total_v_trials
+    from presentation.growth_analytics.trial_shopping_cart_funnel
+    where 
+        first_verified_date is not null
+        and trial_create_date >= '2025-07-15'
+        --and employee_range_band in ('1-9','10-49')
+    group by 1
+),
+
+--- Logins (only Admins, Billing Admins, Owners)
+--- Used a nested CTE because when agents do not
+--- login for consecutive days, field agent_last_login_timestamp
+--- will be the same for multiple days, therefore the need of
+--- deduplicating first.
+logins as (
+    select  
+        date_trunc('day', emails.agent_last_login_timestamp) as login_date,
+        count(*) as total_logins,
+        count(distinct emails.instance_account_id) as unique_logins
+    from (
+        select distinct 
+            emails.agent_last_login_timestamp,
+            emails.instance_account_id
+        from propagated_foundational.product_agent_info.dim_agent_emails_daily_snapshot emails
+        inner join presentation.growth_analytics.trial_accounts trial_accounts_ 
+            on emails.instance_account_id = trial_accounts_.instance_account_id
+        where 
+            (
+                emails.agent_role in ('Admin', 'Billing Admin')
+                or emails.agent_is_owner = True
+            )
+            and emails.agent_last_login_timestamp >= '2025-07-15'
+        ) emails
+    group by all
+),
+
+merged as (
+    select *
+    from verified_trials trial_accounts
+    left join logins logins_
+        on trial_accounts.trial_create_date = logins_.login_date
+)
+
+select *
+from merged
+order by 1
+
+
+
+
+
+
+select *
+from propagated_foundational.product_agent_info.dim_agent_emails_bcv
+where agent_last_login_timestamp >= '2025-08-01'
+order by agent_last_login_timestamp desc
+limit 10
+
+
+
+
+select *
+from propagated_foundational.product_agent_info.dim_agent_emails_bcv
+where 
+    instance_account_id = 17931397
+    and agent_name = 'Zecoya'
+--order by source_snapshot_date
+--limit 10
+
+
+
+
+select *
+from propagated_foundational.product_agent_info.dim_agent_emails_daily_snapshot
+where 
+    instance_account_id = 17931397
+    and agent_name = 'Zecoya'
+    and source_snapshot_date >= '2025-07-01'
+order by source_snapshot_date
+--limit 10
+
+
+
+
+
 --------------------------------------------
 --- Testing if events are firing ok
 
@@ -2814,7 +2907,7 @@ select
     min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as first_event,
     max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as last_event
 from cleansed.segment_support.growth_engine_trial_cta_1_scd2
-where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-16'
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-17'
 group by 1
 order by 2 desc
 
@@ -2827,7 +2920,82 @@ select
     min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as first_event,
     max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as last_event
 from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
-where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-16'
+where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-18'
+group by 1
+order by 2 desc
+
+
+
+
+
+
+select 
+    account_id,
+    count(*) as total_events,
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as first_event,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as last_event
+from cleansed.segment_support.growth_engine_trial_cta_1_scd2
+where original_timestamp >= '2025-09-17'
+group by 1
+order by 2 desc
+
+
+
+
+
+select 
+    account_id,
+    count(*) as total_events,
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as first_event,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as last_event
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where original_timestamp >= '2025-09-18'
+group by 1
+order by 2 desc
+
+
+
+
+
+
+
+select 
+    date_trunc('day', original_timestamp) as event_date,
+    count(*) as total_events,
+    count(distinct account_id) as unique_accounts,
+from cleansed.segment_support.growth_engine_trial_cta_1_scd2
+where original_timestamp >= '2025-08-01'
+group by 1
+order by 1
+
+
+
+
+
+select 
+    date_trunc('day', original_timestamp) as event_date,
+    count(*) as total_events,
+    count(distinct account_id) as unique_accounts,
+from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2
+where original_timestamp >= '2025-08-01'
+group by 1
+order by 1
+
+
+
+
+
+
+
+
+
+select 
+    account_id,
+    count(*) as total_events,
+    min(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as first_event,
+    max(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) as last_event
+from cleansed.segment_support.growth_engine_trial_cta_1_scd2
+where original_timestamp >= '2025-09-17'
 group by 1
 order by 2 desc
 
