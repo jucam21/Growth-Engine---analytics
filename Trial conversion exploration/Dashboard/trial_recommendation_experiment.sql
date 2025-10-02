@@ -1913,4 +1913,57 @@ group by 1
 
 
 
+--- Validate last enrolled accounts & events
+
+
+--- Still seeing enrolled accounts
+select 
+    convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) expt_created_at_pt,
+    instance_account_id,
+    standard_experiment_participation_variation,
+from propagated_cleansed.pda.base_standard_experiment_account_participations participations
+where 
+    lower(standard_experiment_name) like '%persistent_buy_plan_recommendations%'
+    and standard_experiment_participation_variation in ('treatment', 'control')
+    --- After launch date. Using date to remove testing accounts
+    and convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-09-30'
+order by 1 desc
+
+
+
+
+
+--- Problem would be for control customers not seeing the modal
+
+with control as (
+    select 
+        convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) expt_created_at_pt,
+        instance_account_id account_id,
+        standard_experiment_participation_variation,
+    from propagated_cleansed.pda.base_standard_experiment_account_participations participations
+    where 
+        lower(standard_experiment_name) like '%persistent_buy_plan_recommendations%'
+        and standard_experiment_participation_variation in ('treatment', 'control')
+        --- After launch date. Using date to remove testing accounts
+        and convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-10-01'
+        and standard_experiment_participation_variation = 'control'
+),
+
+event_list as (
+    select *
+    from control control_
+    left join propagated_cleansed.pda.base_standard_experiment_account_events ev
+        on
+            control_.account_id = ev.instance_account_id
+            and ev.standard_experiment_name in ('billing_cart_optimization', 'persistent_buy_plan_recommendations')
+)
+
+select
+    standard_experiment_account_event_name,
+    count(*) tot_obs,
+    count(distinct instance_account_id) instance_account_id
+from event_list
+group by 1
+order by 2 desc
+
 
