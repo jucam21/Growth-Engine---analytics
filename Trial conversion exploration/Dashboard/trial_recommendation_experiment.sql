@@ -50,7 +50,7 @@ expt2_raw as (
         trials.trial_type,
         trials.is_direct_buy,
         dim_instance.instance_account_is_abusive is_abusive,
-        '--' as region, --, max(r.region) region <- field not in dim_instance
+        trials.region, --, max(r.region) region <- field not in dim_instance
         dim_instance.instance_account_address_country country,
         '--' as pod_id, --, max(r.pod_id) pod_id <- field not in dim_instance
         -- Active trial at enrollment date

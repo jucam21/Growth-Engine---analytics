@@ -2984,7 +2984,9 @@ order by 1
 
 
 
-
+select *
+from propagated_cleansed.segment_support.growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2
+order by convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) desc
 
 
 
