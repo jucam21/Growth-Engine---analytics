@@ -128,3 +128,88 @@ where zendesk_account_id = 25627661
 25439461
 25627661
 25627671
+
+
+--- Validate last event date
+
+
+select max(original_timestamp) as last_event_date
+from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_load_1_scd2
+
+
+select max(original_timestamp) as last_event_date
+from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
+
+
+
+select 
+    convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) as original_timestamp_pt,
+    account_id
+from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
+order by 1 desc
+limit 100
+
+
+
+--- It seems only 6-8 account ids lenghts are valid
+with lenghts as (
+    select 
+        account_id,
+        length(account_id) as id_length
+    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
+    where 
+        account_id is not null
+        --and convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-09-20'
+    order by 2 desc
+)
+
+select 
+    id_length,
+    count(*) as tot_ids,
+    count(distinct account_id) as tot_unique_ids
+from lenghts
+group by 1
+order by 1 
+
+
+select distinct *
+from lenghts
+where id_length = 10
+limit 10
+
+
+
+
+
+
+
+select 
+    loaded_date,
+    account_id
+from sandbox.juan_salgado.ge_dashboard_test
+order by 1 desc
+limit 100
+
+
+
+select 
+    count(*) as tot_rows,
+    count(distinct account_id) as tot_accounts,
+    count(case when account_id is null then 1 else null end) as tot_null_account_id
+from sandbox.juan_salgado.ge_dashboard_test
+
+
+
+
+select 
+    account_id,
+    length(account_id) as id_length,
+    count(*) as tot_loads,
+from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
+where 
+    date(convert_timezone('UTC', 'America/Los_Angeles', original_timestamp)) = '2025-10-09'
+group by all
+order by 2
+
+
+

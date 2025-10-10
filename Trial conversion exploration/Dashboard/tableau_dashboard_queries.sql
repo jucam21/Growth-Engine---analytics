@@ -363,7 +363,17 @@ segment_events_all as (
             then is_won_unique_ss
             else null
         end as is_won_no_cta,
-        wins.core_base_plan_at_win,
+        --- Base plan categorization to order by price
+        case
+            when wins.core_base_plan_at_win = 'Support Team' then '1. Support Team'
+            when wins.core_base_plan_at_win = 'Support Professional' then '2. Support Professional'
+            when wins.core_base_plan_at_win = 'Support Enterprise' then '3. Support Enterprise'
+            when wins.core_base_plan_at_win = 'Zendesk Suite Team' then '4. Zendesk Suite Team'
+            when wins.core_base_plan_at_win = 'Zendesk Suite Growth' then '5. Zendesk Suite Growth'
+            when wins.core_base_plan_at_win = 'Zendesk Suite Professional' then '6. Zendesk Suite Professional'
+            when wins.core_base_plan_at_win = 'Zendesk Suite Enterprise' then '7. Zendesk Suite Enterprise'
+            else '9, Other'
+        end as core_base_plan_at_win,
         --- Trials extra info
         wins.region,
         wins.help_desk_size_grouped,

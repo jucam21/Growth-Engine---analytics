@@ -22,7 +22,15 @@ with prompt_load_union as (
         original_timestamp 
         from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_load_1_scd2
     union all
-    select instance.instance_account_id as account_id,
+    select 
+        --- Case to pull account id from either agent emails or directly from segment table
+        case
+            when segment.account_id is null then instance.instance_account_id
+            --- Between 6-8 chars is the length of a valid account id. Majority are 8
+            when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
+            when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
+            else null
+        end as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
@@ -39,7 +47,15 @@ prompt_click_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_claim_offer_click_1_scd2
     union all
-    select instance.instance_account_id as account_id,
+    select 
+       --- Case to pull account id from either agent emails or directly from segment table
+        case
+            when segment.account_id is null then instance.instance_account_id
+            --- Between 6-8 chars is the length of a valid account id. Majority are 8
+            when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
+            when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
+            else null
+        end as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
@@ -55,7 +71,15 @@ prompt_dismiss_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_dismiss_offer_1_scd2
     union all
-    select instance.instance_account_id as account_id,
+    select
+        --- Case to pull account id from either agent emails or directly from segment table
+        case
+            when segment.account_id is null then instance.instance_account_id
+            --- Between 6-8 chars is the length of a valid account id. Majority are 8
+            when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
+            when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
+            else null
+        end as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
@@ -71,7 +95,15 @@ work_modal_1_click_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_claim_offer_click_2_scd2
     union all
-    select instance.instance_account_id as account_id,
+    select
+        --- Case to pull account id from either agent emails or directly from segment table
+        case
+            when segment.account_id is null then instance.instance_account_id
+            --- Between 6-8 chars is the length of a valid account id. Majority are 8
+            when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
+            when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
+            else null
+        end as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
@@ -87,7 +119,15 @@ work_modal_1_dismiss_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_dismiss_offer_1_scd2
     union all
-    select instance.instance_account_id as account_id,
+    select
+        --- Case to pull account id from either agent emails or directly from segment table
+        case
+            when segment.account_id is null then instance.instance_account_id
+            --- Between 6-8 chars is the length of a valid account id. Majority are 8
+            when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
+            when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
+            else null
+        end as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
@@ -103,7 +143,15 @@ work_modal_2_click_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2
     union all
-    select instance.instance_account_id as account_id,
+    select
+        --- Case to pull account id from either agent emails or directly from segment table
+        case
+            when segment.account_id is null then instance.instance_account_id
+            --- Between 6-8 chars is the length of a valid account id. Majority are 8
+            when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
+            when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
+            else null
+        end as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
@@ -119,7 +167,15 @@ work_modal_2_dismiss_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_work_modal_2_dismiss_offer_1_scd2
     union all
-    select instance.instance_account_id as account_id,
+    select
+        --- Case to pull account id from either agent emails or directly from segment table
+        case
+            when segment.account_id is null then instance.instance_account_id
+            --- Between 6-8 chars is the length of a valid account id. Majority are 8
+            when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
+            when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
+            else null
+        end as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
@@ -135,7 +191,15 @@ work_modal_2_go_back_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_go_back_scd2
     union all
-    select instance.instance_account_id as account_id,
+    select
+        --- Case to pull account id from either agent emails or directly from segment table
+        case
+            when segment.account_id is null then instance.instance_account_id
+            --- Between 6-8 chars is the length of a valid account id. Majority are 8
+            when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
+            when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
+            else null
+        end as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
@@ -151,7 +215,15 @@ follow_up_close_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_close_scd2
     union all
-    select instance.instance_account_id as account_id,
+    select
+        --- Case to pull account id from either agent emails or directly from segment table
+        case
+            when segment.account_id is null then instance.instance_account_id
+            --- Between 6-8 chars is the length of a valid account id. Majority are 8
+            when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
+            when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
+            else null
+        end as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
@@ -167,7 +239,15 @@ follow_up_dismiss_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_dismiss_scd2
     union all
-    select instance.instance_account_id as account_id,
+    select
+        --- Case to pull account id from either agent emails or directly from segment table
+        case
+            when segment.account_id is null then instance.instance_account_id
+            --- Between 6-8 chars is the length of a valid account id. Majority are 8
+            when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
+            when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
+            else null
+        end as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
@@ -183,7 +263,15 @@ follow_up_subscription_union as (
         promo_code_id,
         original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_subscription_details_scd2
     union all
-    select instance.instance_account_id as account_id,
+    select
+        --- Case to pull account id from either agent emails or directly from segment table
+        case
+            when segment.account_id is null then instance.instance_account_id
+            --- Between 6-8 chars is the length of a valid account id. Majority are 8
+            when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
+            when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
+            else null
+        end as account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
