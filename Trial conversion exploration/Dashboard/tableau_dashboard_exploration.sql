@@ -533,7 +533,7 @@ modal_funnel as (
                 modal_buy_now_.max_date_buy_now is null and modal_see_all_plans_.max_date_see_all_plans is null
             then 'No modal click'
             when 
-                --- Clicked buy now last before win
+                --- Last clicked on buy now before win
                 --- Modal buy now click after modal load
                 (
                     modal_buy_now_.max_date_buy_now > modal_see_all_plans_.max_date_see_all_plans
@@ -542,7 +542,7 @@ modal_funnel as (
                 or modal_see_all_plans_.max_date_see_all_plans is null
             then 'Buy now click'
             when 
-                --- Clicked see all plans last before win
+                --- Last clicked on see all plans before win
                 --- Modal see all plans click after modal load
                 (
                     modal_see_all_plans_.max_date_see_all_plans > modal_buy_now_.max_date_buy_now
@@ -751,4 +751,165 @@ SELECT total_booking_arr_band_primary, total_booking_arr_band_secondary, COUNT(*
 FROM FUNCTIONAL.GROWTH_ANALYTICS.CURATED_BOOKINGS
 GROUP BY ALL
 ORDER BY 1,2
+
+
+
+
+
+
+
+
+
+
+
+
+
+----------------------------------------------------
+--- Compare GE loads with Agus's data
+--- Some customers fire the GE trial CTA but never load the Agus cart
+
+
+with ge_buy_loads as (
+    select original_timestamp, account_id
+    from cleansed.segment_support.growth_engine_trial_cta_1_scd2
+    where cta = 'purchase'
+),
+
+agus_cart_load as (
+    with buy_your_trial_cta_p as ( -- triggered by clicking on "buy trial plan" cta
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product,
+        'Buy Trial Plan' as cta_name
+    from
+        cleansed.segment_billing.segment_billing_cart_loaded_scd2
+    where
+        paid_customer = false
+        and cart_screen in ('preset_trial_plan', 'buy_your_trial', 'buy_trial_plan')
+        and cart_type = 'spp_self_service'
+    union all
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product,
+        'Buy Trial Plan' as cta_name
+    from
+        cleansed.segment_billing.segment_billing_payment_loaded_scd2
+    where
+        paid_customer = false
+        and cart_screen in ('preset_trial_plan', 'buy_your_trial', 'buy_trial_plan') -- cta specific filter
+        and cart_type = 'spp_self_service'
+    union all
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product,
+        'Buy Trial Plan' as cta_name
+    from
+        cleansed.bq_archive.billing_cart_loaded
+    where
+        1 = 1
+        and date(timestamp) >= '2024-01-01'
+        and paid_customer = false
+        and cart_screen = 'preset_trial_plan' -- cta specific filter
+        and cart_type = 'spp_self_service'
+    union all
+    select distinct
+        timestamp,
+        session_id,
+        user_id,
+        account_id,
+        trial_days,
+        plan_name,
+        product,
+        'Buy Trial Plan' as cta_name
+    from
+        cleansed.bq_archive.billing_payment_loaded
+    where
+        1 = 1
+        and date(timestamp) >= '2024-01-01'
+        and paid_customer = false
+        and cart_screen = 'preset_trial_plan' -- cta specific filter
+        and cart_type = 'spp_self_service'
+)
+
+select *
+from buy_your_trial_cta_p
+),
+
+joined_ge_agus as (
+    select
+        ge.*,
+        case when agus.account_id is not null then 1 else 0 end as agus_cart_loaded,
+        agus.* exclude (account_id)
+    from ge_buy_loads ge
+    left join agus_cart_load agus
+        on ge.account_id = agus.account_id
+    where date_trunc('week', ge.original_timestamp) = '2025-10-06'
+)
+
+
+--- Count CTA GE
+select 
+    date_trunc('week', ge.original_timestamp) week_,
+    count(*) tot_obs,
+    count(distinct ge.account_id) account_id,
+    count(distinct case when agus.account_id is null then ge.account_id else null end) account_id_not_found_in_agus
+from ge_buy_loads ge
+left join agus_cart_load agus
+    on 
+        ge.account_id = agus.account_id
+        and date_trunc('week', ge.original_timestamp) = date_trunc('week', agus.timestamp)
+group by 1
+order by 1 desc
+limit 10
+
+
+
+
+select *
+from joined_ge_agus
+order by account_id, original_timestamp
+
+
+
+
+--- Count Agus visits
+select 
+    date_trunc('week', timestamp) week_,
+    count(*) tot_obs,
+    count(distinct account_id) account_id
+from agus_cart_load
+group by 1
+order by 1 desc
+limit 10
+
+
+
+
+--- Count CTA GE
+select 
+    date_trunc('week', original_timestamp) week_,
+    count(*) tot_obs,
+    count(distinct account_id) account_id
+from ge_buy_loads
+group by 1
+order by 1 desc
+limit 10
+
+
+
 
