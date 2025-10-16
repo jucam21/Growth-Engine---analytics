@@ -832,14 +832,16 @@ master_cart_funnel as (
     union all
 
     select 
-        modal_buy_now.account_id,
+        --- Account id from either modal load or from CTA click. To include compare plan clicks 
+        --- with no modal load
+        coalesce(compare_plans_and_auto_trigger_.account_id, compare_plans_and_auto_trigger_.cta_click_account_id) as account_id,
         'modal_loads' as funnel_type,
-        modal_buy_now.cta_click_timestamp,
-        modal_buy_now.cta_click_timestamp_pt,
-        modal_buy_now.cta_click_trial_type,
-        modal_buy_now.cta_click_cta,
-        modal_buy_now.original_timestamp as buy_trial_or_modal_load_timestamp,
-        modal_buy_now.original_timestamp_pt as buy_trial_or_modal_load_timestamp_pt,
+        compare_plans_and_auto_trigger_.cta_click_timestamp,
+        compare_plans_and_auto_trigger_.cta_click_timestamp_pt,
+        compare_plans_and_auto_trigger_.cta_click_trial_type,
+        compare_plans_and_auto_trigger_.cta_click_cta,
+        coalesce(compare_plans_and_auto_trigger_.original_timestamp, compare_plans_and_auto_trigger_.cta_click_timestamp) as original_timestamp,
+        coalesce(compare_plans_and_auto_trigger_.original_timestamp_pt, compare_plans_and_auto_trigger_.cta_click_timestamp_pt) as original_timestamp_pt,
         modal_buy_now.offer_id,
         modal_buy_now.plan_name,
         modal_buy_now.preview_state,
@@ -860,10 +862,15 @@ master_cart_funnel as (
         modal_buy_now.pps_timestamp as modal_buy_now_pps_timestamp,
         modal_see_all.ppv_timestamp as modal_see_all_plans_ppv_timestamp,
         modal_see_all.pps_timestamp as modal_see_all_plans_pps_timestamp
-    from modal_load_buy_now_payment_submit modal_buy_now
+    --- Joining to the universe of customers (compare plans/auto trigger) the
+    --- Buy now or see all plans funnels
+    from compare_plans_and_auto_trigger compare_plans_and_auto_trigger_
+    left join modal_load_buy_now_payment_submit modal_buy_now
+        on compare_plans_and_auto_trigger_.account_id = modal_buy_now.account_id
+        and compare_plans_and_auto_trigger_.original_timestamp = modal_buy_now.original_timestamp
     left join modal_see_all_plans_payment_submit_joined modal_see_all
-        on modal_buy_now.account_id = modal_see_all.account_id
-        and modal_buy_now.original_timestamp = modal_see_all.original_timestamp
+        on compare_plans_and_auto_trigger_.account_id = modal_see_all.account_id
+        and compare_plans_and_auto_trigger_.original_timestamp = modal_see_all.original_timestamp
 ),
 
 ----------------------------------------------------------------------
@@ -894,7 +901,8 @@ win_attribution as (
         buy_trial_or_modal_load_timestamp
     from master_cart_funnel_wins
     where 
-        is_won = 1
+        --is_won = 1
+        is_won_ss = 1
         and (date_trunc('day', buy_trial_pps_timestamp) <= win_date or
         date_trunc('day', modal_buy_now_pps_timestamp) <= win_date or
         date_trunc('day', modal_see_all_plans_pps_timestamp) <= win_date)
@@ -931,10 +939,67 @@ master_cart_funnel_wins_attribution as (
         and master_cart.buy_trial_or_modal_load_timestamp = win_attr.buy_trial_or_modal_load_timestamp
     left join (select distinct account_id from win_attribution) win_attr_submit
         on master_cart.account_id = win_attr_submit.account_id
+),
+
+--- Add flags for easier filtering in dashboards
+master_cart_funnel_wins_attribution_flags as (
+    select 
+        *,
+        --- Step 0: funnel ingress
+        case when cta_click_cta = 'purchase' then account_id else null end as buy_your_trial_clicked_flag,
+        case when cta_click_cta = 'compare' then account_id else null end as compare_clicked_flag,
+        case when modal_auto_load_or_cta = 'auto_trigger' then account_id else null end as modal_auto_trigger_load_flag,
+        --- Step 1: modal loads
+        case when modal_auto_load_or_cta = 'auto_trigger' or modal_auto_load_or_cta = 'CTA' then account_id else null end as modal_loaded_flag,
+        case when modal_auto_load_or_cta = 'CTA' then account_id else null end as modal_cta_loaded_flag,
+        --- Step 2: modal interactions
+        case when buy_now_timestamp is not null or see_all_plans_timestamp is not null then account_id else null end as modal_clicked_flag,
+        case when buy_now_timestamp is not null then account_id else null end as modal_buy_now_clicked_flag,
+        case when see_all_plans_timestamp is not null then account_id else null end as modal_see_all_plans_clicked_flag,
+        --- Step 3: plan lineup loads
+        case when plan_lineup_support_timestamp is not null or plan_lineup_suite_timestamp is not null then account_id else null end as plan_lineup_loaded_flag,
+        case when plan_lineup_support_timestamp is not null then account_id else null end as plan_lineup_support_loaded_flag,
+        case when plan_lineup_suite_timestamp is not null then account_id else null end as plan_lineup_suite_loaded_flag,
+        --- Step 4: payment page visits
+        case 
+        when 
+            buy_trial_ppv_timestamp is not null or 
+            modal_buy_now_ppv_timestamp is not null or 
+            modal_see_all_plans_ppv_timestamp is not null 
+        then account_id else null end as payment_page_visited_flag,
+        case when buy_trial_ppv_timestamp is not null then account_id else null end as buy_your_trial_payment_page_visited_flag,
+        case when modal_buy_now_ppv_timestamp is not null then account_id else null end as modal_buy_now_payment_page_visited_flag,
+        case when modal_see_all_plans_ppv_timestamp is not null then account_id else null end as modal_see_all_plans_payment_page_visited_flag,
+        --- Payment visits suite or support
+        case when ppv_support_timestamp is not null then account_id else null end as payment_page_visited_support_flag,
+        case when ppv_suite_timestamp is not null then account_id else null end as payment_page_visited_suite_flag,
+        --- Step 5: payment submissions
+        case 
+            when 
+                buy_trial_pps_timestamp is not null or 
+                modal_buy_now_pps_timestamp is not null or
+                modal_see_all_plans_pps_timestamp is not null
+            then account_id else null end as payment_submitted_flag,
+        case when buy_trial_pps_timestamp is not null then account_id else null end as buy_your_trial_payment_submitted_flag,
+        case when modal_buy_now_pps_timestamp is not null then account_id else null end as modal_buy_now_payment_submitted_flag,
+        case when modal_see_all_plans_pps_timestamp is not null then account_id else null end as modal_see_all_plans_payment_submitted_flag,
+        --- Payment submission suite or support
+        case when pps_support_timestamp is not null then account_id else null end as payment_submitted_support_flag,
+        case when pps_suite_timestamp is not null then account_id else null end as payment_submitted_suite_flag,
+        --- Step 6: win attribution
+        case when is_won = 1 then account_id else null end as won_flag,
+        case when is_won_ss = 1 then account_id else null end as won_ss_flag,
+        case when win_attribution_flag in ('buy_your_trial_win', 'modal_buy_now_win', 'modal_see_all_plans_win') then account_id else null end as won_via_agent_home_flag,
+        case when win_attribution_flag = 'buy_your_trial_win' then account_id else null end as won_via_buy_your_trial_flag,
+        case when win_attribution_flag = 'modal_buy_now_win' then account_id else null end as won_via_modal_buy_now_flag,
+        case when win_attribution_flag = 'modal_see_all_plans_win' then account_id else null end as won_via_modal_see_all_plans_flag,
+        case when win_attribution_flag = 'won_outside_agent_home' then account_id else null end as won_outside_agent_home_flag
+    from master_cart_funnel_wins_attribution
 )
 
 select *, CONVERT_TIMEZONE('UTC', 'America/Los_Angeles', CURRENT_TIMESTAMP) as updated_at
-from master_cart_funnel_wins_attribution
+from master_cart_funnel_wins_attribution_flags
+
 
 
 

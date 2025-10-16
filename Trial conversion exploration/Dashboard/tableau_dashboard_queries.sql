@@ -1255,14 +1255,16 @@ master_cart_funnel as (
     union all
 
     select 
-        modal_buy_now.account_id,
+        --- Account id from either modal load or from CTA click. To include compare plan clicks 
+        --- with no modal load
+        coalesce(compare_plans_and_auto_trigger_.account_id, compare_plans_and_auto_trigger_.cta_click_account_id) as account_id,
         'modal_loads' as funnel_type,
-        modal_buy_now.cta_click_timestamp,
-        modal_buy_now.cta_click_timestamp_pt,
-        modal_buy_now.cta_click_trial_type,
-        modal_buy_now.cta_click_cta,
-        modal_buy_now.original_timestamp as buy_trial_or_modal_load_timestamp,
-        modal_buy_now.original_timestamp_pt as buy_trial_or_modal_load_timestamp_pt,
+        compare_plans_and_auto_trigger_.cta_click_timestamp,
+        compare_plans_and_auto_trigger_.cta_click_timestamp_pt,
+        compare_plans_and_auto_trigger_.cta_click_trial_type,
+        compare_plans_and_auto_trigger_.cta_click_cta,
+        coalesce(compare_plans_and_auto_trigger_.original_timestamp, compare_plans_and_auto_trigger_.cta_click_timestamp) as original_timestamp,
+        coalesce(compare_plans_and_auto_trigger_.original_timestamp_pt, compare_plans_and_auto_trigger_.cta_click_timestamp_pt) as original_timestamp_pt,
         modal_buy_now.offer_id,
         modal_buy_now.plan_name,
         modal_buy_now.preview_state,
@@ -1283,10 +1285,15 @@ master_cart_funnel as (
         modal_buy_now.pps_timestamp as modal_buy_now_pps_timestamp,
         modal_see_all.ppv_timestamp as modal_see_all_plans_ppv_timestamp,
         modal_see_all.pps_timestamp as modal_see_all_plans_pps_timestamp
-    from modal_load_buy_now_payment_submit modal_buy_now
+    --- Joining to the universe of customers (compare plans/auto trigger) the
+    --- Buy now or see all plans funnels
+    from compare_plans_and_auto_trigger compare_plans_and_auto_trigger_
+    left join modal_load_buy_now_payment_submit modal_buy_now
+        on compare_plans_and_auto_trigger_.account_id = modal_buy_now.account_id
+        and compare_plans_and_auto_trigger_.original_timestamp = modal_buy_now.original_timestamp
     left join modal_see_all_plans_payment_submit_joined modal_see_all
-        on modal_buy_now.account_id = modal_see_all.account_id
-        and modal_buy_now.original_timestamp = modal_see_all.original_timestamp
+        on compare_plans_and_auto_trigger_.account_id = modal_see_all.account_id
+        and compare_plans_and_auto_trigger_.original_timestamp = modal_see_all.original_timestamp
 ),
 
 ----------------------------------------------------------------------
@@ -1355,6 +1362,23 @@ master_cart_funnel_wins_attribution as (
     left join (select distinct account_id from win_attribution) win_attr_submit
         on master_cart.account_id = win_attr_submit.account_id
 )
+
+
+
+/* 
+TOT_OBS	CTA_CLICK_ACCOUNT_ID	MODAL_LOADS
+4640	3287	3218
+*/
+select 
+    cta_click_cta,
+    count(*) tot_obs,
+    count(distinct account_id) as account_id,
+    count(distinct case when modal_auto_load_or_cta is not null then account_id else null end) modal_loads
+from master_cart_funnel_wins_attribution
+group by 1
+
+
+
 
 
 
@@ -2280,9 +2304,257 @@ order by 1
 
 
 
+select 
+    win_attribution_flag,
+    count(*) as total_wins,
+    count(distinct account_id) as total_won_accounts
+from sandbox.juan_salgado.cart_funnel_session
+group by 1
 
 
 
 
 
+
+
+
+--- Compare plan clicks into modal load
+
+--- Step 0: Import relevant fields from trial accounts
+with accounts as (
+    select 
+        trial_accounts.instance_account_id,
+        trial_accounts.crm_account_id,
+        --- Overall Win data
+        trial_accounts.win_date,
+        case when trial_accounts.win_date is not null then 1 else null end as is_won,
+        case when trial_accounts.win_date is not null then instance_account_arr_usd_at_win else null end as is_won_arr,
+        --- SS wins
+        case 
+            when 
+                trial_accounts.win_date is not null 
+                and trial_accounts.sales_model_at_win <> 'Assisted'
+                and trial_accounts.is_direct_buy = FALSE
+                then 1 else null 
+        end as is_won_ss,
+        case 
+            when 
+                trial_accounts.win_date is not null 
+                and trial_accounts.sales_model_at_win <> 'Assisted'
+                and trial_accounts.is_direct_buy = FALSE
+                then instance_account_arr_usd_at_win else null 
+        end as is_won_ss_arr,
+        --- Trials extra info
+        trial_accounts.region,
+        trial_accounts.help_desk_size_grouped,
+        trial_accounts.instance_account_created_date,
+        trial_accounts.seats_capacity_band_at_win,
+    from presentation.growth_analytics.trial_accounts trial_accounts 
+),
+
+--- Step 1: count interactions with each modal step
+--- Inner join to trial accounts to remove testing accounts
+
+cta_click as (
+    select distinct
+        cta_click.original_timestamp,
+        convert_timezone('UTC', 'America/Los_Angeles', cta_click.original_timestamp) original_timestamp_pt,
+        cta_click.account_id,
+        cta_click.trial_type,
+        cta_click.cta,
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_scd2 cta_click
+    inner join accounts a
+        on cta_click.account_id = a.instance_account_id
+),
+
+modal_load as (
+    select distinct
+        load.original_timestamp,
+        convert_timezone('UTC', 'America/Los_Angeles', load.original_timestamp) original_timestamp_pt,
+        account_id,
+        offer_id,
+        plan_name,
+        preview_state,
+        source
+    from
+        cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 load
+    inner join accounts a
+        on load.account_id = a.instance_account_id
+),
+
+compare_plans_into_modal_load as (
+    --- Accounts with compare plans clicks & modal load
+    select
+        cta_click_.original_timestamp as cta_click_timestamp,
+        cta_click_.original_timestamp_pt as cta_click_timestamp_pt,
+        cta_click_.account_id as cta_click_account_id,
+        cta_click_.trial_type as cta_click_trial_type,
+        cta_click_.cta as cta_click_cta,
+        modal_load_.*
+    from cta_click cta_click_
+    left join modal_load modal_load_
+        on cta_click_.account_id = modal_load_.account_id
+        and modal_load_.original_timestamp >= cta_click_.original_timestamp
+        and datediff(minute, cta_click_.original_timestamp, modal_load_.original_timestamp) <= 120
+        --- Modal loads from compare plans clicks
+        and modal_load_.source = 'CTA'
+    --- Just compare plans clicks
+    where cta_click_.cta = 'compare'
+    qualify row_number() over (partition by cta_click_.account_id, cta_click_.original_timestamp order by modal_load_.original_timestamp) = 1
+),
+
+
+compare_plans_into_modal_load_v2 as (
+    --- Accounts with compare plans clicks & modal load
+    select
+        cta_click_.original_timestamp as cta_click_timestamp,
+        cta_click_.original_timestamp_pt as cta_click_timestamp_pt,
+        cta_click_.account_id as cta_click_account_id,
+        cta_click_.trial_type as cta_click_trial_type,
+        cta_click_.cta as cta_click_cta,
+        modal_load_.*
+    from cta_click cta_click_
+    left join modal_load modal_load_
+        on cta_click_.account_id = modal_load_.account_id
+        and modal_load_.original_timestamp >= cta_click_.original_timestamp
+        and datediff(minute, cta_click_.original_timestamp, modal_load_.original_timestamp) <= 120
+        --- Modal loads from compare plans clicks
+        and modal_load_.source = 'CTA'
+    --- Just compare plans clicks
+    where cta_click_.cta = 'compare'
+    qualify row_number() over (partition by cta_click_.account_id, cta_click_.original_timestamp order by modal_load_.original_timestamp) = 1
+
+    union all
+
+    --- Accounts with modal load, but no preceding compare plans click
+    select
+        --- Inputting nulls for compare plans clicks
+        modal_load_.original_timestamp as cta_click_timestamp,
+        modal_load_.original_timestamp_pt as cta_click_timestamp_pt,
+        modal_load_.account_id as cta_click_account_id,
+        'trial' as cta_click_trial_type,
+        'compare' as cta_click_cta,
+        modal_load_.*,
+    from modal_load modal_load_
+    left join cta_click cta_click_
+        on cta_click_.account_id = modal_load_.account_id
+        and modal_load_.original_timestamp >= cta_click_.original_timestamp
+        and datediff(minute, cta_click_.original_timestamp, modal_load_.original_timestamp) <= 120
+        and cta_click_.cta = 'compare'
+    where 
+        modal_load_.source = 'CTA'
+        and cta_click_.account_id is null
+)
+
+
+/* 
+TOT_OBS	CTA_CLICK_ACCOUNT_ID	MODAL_LOADS
+4640	3287	3218
+*/
+select 
+    count(*) tot_obs,
+    count(distinct account_id) as account_id,
+    count(distinct cta_click_account_id) as cta_click_account_id,
+    count(distinct case when source is not null then cta_click_account_id else null end) modal_loads
+from compare_plans_into_modal_load_v2
+
+
+
+
+
+/* 
+TOT_OBS	CTA_CLICK_ACCOUNT_ID	MODAL_LOADS
+2878	2021	1947
+*/
+select 
+    count(*) tot_obs,
+    count(distinct cta_click_account_id) as cta_click_account_id,
+    count(distinct case when account_id is not null then cta_click_account_id else null end) modal_loads
+from compare_plans_into_modal_load
+
+
+
+
+
+
+
+/* 
+TOT_OBS	ACCOUNT_ID
+2878	2021
+*/
+select 
+    count(*) tot_obs,
+    count(distinct account_id) as account_id
+from cta_click
+where cta = 'compare'
+
+
+
+
+select *
+from sandbox.juan_salgado.cart_funnel_session
+where 
+    cta_click_cta = 'compare'
+    and modal_loaded_flag is null
+
+
+
+
+
+select 
+    count(distinct compare_clicked_flag)
+from sandbox.juan_salgado.cart_funnel_session
+where 
+    cta_click_cta = 'compare'
+    and modal_loaded_flag is null
+
+
+
+
+/* 
+TOT_OBS	CTA_CLICK_ACCOUNT_ID	MODAL_LOADS
+4640	3287	3218
+*/
+select 
+    cta_click_cta,
+    count(*) tot_obs,
+    count(distinct account_id) as account_id,
+    count(distinct case when modal_auto_load_or_cta is not null then account_id else null end) modal_loads
+from sandbox.juan_salgado.cart_funnel_session
+group by 1
+
+
+
+
+
+/* 
+TOT_OBS	CTA_CLICK_ACCOUNT_ID	MODAL_LOADS
+4640	3287	3218
+*/
+select 
+    count(*) tot_obs,
+    count(distinct account_id) as account_id,
+    count(distinct case when modal_auto_load_or_cta is not null then account_id else null end) modal_loads
+from sandbox.juan_salgado.cart_funnel_session
+
+
+
+
+select 
+    count(*) tot_obs,
+    count(distinct account_id) as account_id,
+from sandbox.juan_salgado.cart_funnel_session
+where buy_trial_or_modal_load_timestamp is null
+
+
+
+
+select 
+    modal_auto_load_or_cta,
+    count(*) tot_obs,
+    count(distinct account_id) as account_id,
+from sandbox.juan_salgado.cart_funnel_session
+where cta_click_timestamp is null
+group by 1
 
