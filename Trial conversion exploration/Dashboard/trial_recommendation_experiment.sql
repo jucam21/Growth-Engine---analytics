@@ -2447,29 +2447,464 @@ where
     and convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-11'
 
 
---- Query expansion/churn - first version of experiment
 
 
-select *
-from 
 
 
-with control as (
 
+
+-------------------------------------------------------------
+--- Query expansion/churn - Aug11 - Sep03
+
+
+with control_ as (
+    select column1 as account_id
+    from values 
+        (25700949),
+        (25699387),
+        (25696466),
+        (25695896),
+        (25694660),
+        (25691047),
+        (25686550),
+        (25684999),
+        (25684702),
+        (25682725),
+        (25682173),
+        (25491878),
+        (25681036),
+        (25679260),
+        (25598567),
+        (25674428),
+        (25674305),
+        (25673936),
+        (25481789),
+        (25673627),
+        (25671509),
+        (25670851),
+        (25668337),
+        (25658616),
+        (25658390),
+        (25658118),
+        (25542760),
+        (25655238),
+        (25654309),
+        (25653710),
+        (25518009),
+        (25653309),
+        (25652411),
+        (25652138),
+        (25651392),
+        (25539020),
+        (25645657),
+        (25647287),
+        (25646756),
+        (25646051),
+        (25548036),
+        (25569090),
+        (25641931),
+        (25641780),
+        (25598090),
+        (25641007),
+        (25513470),
+        (25584449),
+        (25639433),
+        (25590994),
+        (25605991),
+        (25634046),
+        (25634006),
+        (25633205),
+        (25607097),
+        (25632380),
+        (25631902),
+        (25631641),
+        (25631474),
+        (25605328),
+        (25628656),
+        (25577406),
+        (25627193),
+        (25607473),
+        (25626944),
+        (25626693),
+        (25303044),
+        (25625606),
+        (25566528),
+        (25567064),
+        (24964213),
+        (25623342),
+        (25576942),
+        (25622885),
+        (25622577),
+        (25510572),
+        (25572770),
+        (25563476),
+        (25621895),
+        (25596311),
+        (25470418),
+        (25620998),
+        (25587991),
+        (25515292),
+        (25619155),
+        (25522505),
+        (25618658),
+        (25599266),
+        (25520124),
+        (25574727),
+        (25572795),
+        (25617844),
+        (25598882),
+        (25617630),
+        (25617649),
+        (25546767),
+        (25567598),
+        (25617057),
+        (25585240),
+        (23528184),
+        (25539403),
+        (25611911),
+        (25040080),
+        (25559829),
+        (25612336),
+        (25545036),
+        (25590897),
+        (25596122),
+        (25597447),
+        (25599447),
+        (25573352),
+        (25443633),
+        (25551619),
+        (25601365),
+        (25519069),
+        (25573794),
+        (25582803),
+        (25536630),
+        (25614606),
+        (25575927),
+        (25613888)
+),
+
+variant_ as (
+    select column1 as account_id
+    from values 
+        (25700587),
+        (25696485),
+        (25695081),
+        (25690898),
+        (25688138),
+        (25683841),
+        (25683268),
+        (25682747),
+        (25680945),
+        (25679184),
+        (25677701),
+        (25535588),
+        (25677354),
+        (25387942),
+        (25676407),
+        (25674979),
+        (25673784),
+        (25673658),
+        (25673559),
+        (25668308),
+        (25661688),
+        (25661185),
+        (25660760),
+        (25519854),
+        (25658277),
+        (25658218),
+        (25658138),
+        (25655024),
+        (25653940),
+        (25598514),
+        (25653473),
+        (25613995),
+        (25094736),
+        (25564504),
+        (25648488),
+        (25524384),
+        (25647554),
+        (25646392),
+        (25646132),
+        (25646121),
+        (25590126),
+        (25645941),
+        (25645492),
+        (25645174),
+        (25642693),
+        (25590010),
+        (25642123),
+        (25641812),
+        (25641684),
+        (25640778),
+        (25640676),
+        (25640317),
+        (25639745),
+        (25584803),
+        (25584782),
+        (25584729),
+        (25584365),
+        (25584340),
+        (25638074),
+        (25637281),
+        (25636373),
+        (25632570),
+        (25632440),
+        (25632415),
+        (25594531),
+        (25631957),
+        (25631597),
+        (25630537),
+        (25630132),
+        (25596939),
+        (25629639),
+        (25569449),
+        (25628258),
+        (25627264),
+        (25572605),
+        (25626709),
+        (25580014),
+        (25599833),
+        (25625208),
+        (25625187),
+        (25538581),
+        (25541266),
+        (25511594),
+        (25623586),
+        (25623567),
+        (25497201),
+        (25587299),
+        (25599245),
+        (25525771),
+        (25574154),
+        (25598373),
+        (25622360),
+        (25547206),
+        (25621939),
+        (25621376),
+        (25585351),
+        (25435870),
+        (25441648),
+        (25510972),
+        (25619183),
+        (25603610),
+        (25618884),
+        (25434615),
+        (25618300),
+        (25618160),
+        (25572984),
+        (25380892),
+        (25613404),
+        (25594393),
+        (25613620),
+        (25567844),
+        (25616534),
+        (25525662),
+        (25566975),
+        (25563590),
+        (25566119),
+        (25611971),
+        (25598881),
+        (25592545),
+        (25588201),
+        (25588714),
+        (25592175),
+        (25577364),
+        (25612548),
+        (25614592),
+        (25612801),
+        (25563635),
+        (25579209),
+        (25607865),
+        (25603124),
+        (25544432),
+        (25537024),
+        (25606315),
+        (25595486),
+        (25591629),
+        (25587466)
+),
+
+expt_population as (
+    select 
+        'V0: Control' as variation,
+        account_id
+    from control_
+    union all
+    select 
+        'V1: Variant' as variation,
+        account_id
+    from variant_
+),
+
+main as (
+    select 
+        trial_accounts_.instance_account_id,
+        expt_population_.variation,
+        trial_accounts_.last_snapshot_date,
+        trial_accounts_.win_date,
+        trial_accounts_.instance_account_arr_usd_at_win arr_at_win,
+        trial_accounts_.instance_account_arr_usd_at_mo1 arr_at_mo1,
+        trial_accounts_.instance_account_arr_usd_at_mo2 arr_at_mo2,
+        trial_accounts_.instance_account_arr_usd_at_mo3 arr_at_mo3,
+        trial_accounts_.instance_account_arr_usd_at_last_snapshot arr_at_latest,
+        --- Flags to indicate data availability at each timepoint
+        case 
+            when trial_accounts_.mo1_date <= trial_accounts_.last_snapshot_date then 1 else 0
+        end as has_data_mo1,
+        case 
+            when trial_accounts_.mo2_date <= trial_accounts_.last_snapshot_date then 1 else 0
+        end as has_data_mo2,
+        case 
+            when trial_accounts_.mo3_date <= trial_accounts_.last_snapshot_date then 1 else 0
+        end as has_data_mo3,
+        case 
+            when has_data_mo1 = 1 then trial_accounts_.instance_account_arr_usd_at_win else 0 
+        end as has_data_arr_mo1,
+        case 
+            when has_data_mo2 = 1 then trial_accounts_.instance_account_arr_usd_at_win else 0 
+        end as has_data_arr_mo2,
+        case 
+            when has_data_mo3 = 1 then trial_accounts_.instance_account_arr_usd_at_win else 0 
+        end as has_data_arr_mo3,
+        --- Expansion & churn metrics
+        --- Expansion flags
+        case 
+            when 
+                trial_accounts_.mo1_date <= trial_accounts_.last_snapshot_date
+                and trial_accounts_.instance_account_arr_usd_at_mo1 > trial_accounts_.instance_account_arr_usd_at_win
+            then 1 else 0
+        end as is_expanded_mo1,
+        case 
+            when 
+                trial_accounts_.mo2_date <= trial_accounts_.last_snapshot_date
+                and trial_accounts_.instance_account_arr_usd_at_mo2 > trial_accounts_.instance_account_arr_usd_at_win
+            then 1 else 0
+        end as is_expanded_mo2,
+        case 
+            when 
+                trial_accounts_.mo3_date <= trial_accounts_.last_snapshot_date
+                and trial_accounts_.instance_account_arr_usd_at_mo3 > trial_accounts_.instance_account_arr_usd_at_win
+            then 1 else 0
+        end as is_expanded_mo3,
+        case 
+            when 
+                trial_accounts_.instance_account_arr_usd_at_last_snapshot > trial_accounts_.instance_account_arr_usd_at_win
+            then 1 else 0
+        end as is_expanded_latest,
+        --- Expansion amounts
+        case 
+            when is_expanded_mo1 = 1 
+            then trial_accounts_.instance_account_arr_usd_at_mo1 - trial_accounts_.instance_account_arr_usd_at_win 
+            else 0 
+        end as expansion_amount_mo1,
+        case 
+            when is_expanded_mo2 = 1 
+            then trial_accounts_.instance_account_arr_usd_at_mo2 - trial_accounts_.instance_account_arr_usd_at_win 
+            else 0 
+        end as expansion_amount_mo2,
+        case 
+            when is_expanded_mo3 = 1 
+            then trial_accounts_.instance_account_arr_usd_at_mo3 - trial_accounts_.instance_account_arr_usd_at_win 
+            else 0 
+        end as expansion_amount_mo3,
+        case 
+            when is_expanded_latest = 1 
+            then trial_accounts_.instance_account_arr_usd_at_last_snapshot - trial_accounts_.instance_account_arr_usd_at_win 
+            else 0 
+        end as expansion_amount_latest,
+        --- Churn flags
+        case 
+            when 
+                trial_accounts_.mo1_date <= trial_accounts_.last_snapshot_date
+                and (trial_accounts_.instance_account_arr_usd_at_mo1 = 0 or trial_accounts_.instance_account_arr_usd_at_mo1 is null)
+            then 1 else 0
+        end as is_churned_mo1,
+        case 
+            when 
+                (trial_accounts_.mo2_date <= trial_accounts_.last_snapshot_date
+                and (trial_accounts_.instance_account_arr_usd_at_mo2 = 0 or trial_accounts_.instance_account_arr_usd_at_mo2 is null))
+                or is_churned_mo1 = 1
+            then 1 else 0
+        end as is_churned_mo2,
+        case 
+            when 
+                (trial_accounts_.mo3_date <= trial_accounts_.last_snapshot_date
+                and (trial_accounts_.instance_account_arr_usd_at_mo3 = 0 or trial_accounts_.instance_account_arr_usd_at_mo3 is null))
+                or is_churned_mo2 = 1
+            then 1 else 0
+        end as is_churned_mo3,
+        case 
+            when 
+                trial_accounts_.instance_account_arr_usd_at_last_snapshot = 0 or trial_accounts_.instance_account_arr_usd_at_last_snapshot is null
+            then 1 else 0
+        end as is_churned_latest,
+        --- Churn amounts
+        case 
+            when is_churned_mo1 = 1
+            then trial_accounts_.instance_account_arr_usd_at_win
+            else 0
+        end as churn_amount_mo1,
+        case 
+            when is_churned_mo2 = 1
+            then trial_accounts_.instance_account_arr_usd_at_win
+            else 0
+        end as churn_amount_mo2,
+        case 
+            when is_churned_mo3 = 1
+            then trial_accounts_.instance_account_arr_usd_at_win    
+            else 0
+        end as churn_amount_mo3,
+        case 
+            when is_churned_latest = 1
+            then trial_accounts_.instance_account_arr_usd_at_win
+            else 0
+        end as churn_amount_latest
+    from presentation.growth_analytics.trial_accounts trial_accounts_
+    inner join expt_population expt_population_
+        on trial_accounts_.instance_account_id = expt_population_.account_id
 )
 
 
+select *, convert_timezone('UTC', 'America/Los_Angeles', current_timestamp) as updated_at
+from main
+
+
+
+select *
+from main
+where is_churned_latest = 1
+and variation = 'variant'
+
+
+
+
+
+select 
+    variation,
+    count(*) tot_obs,
+    count(distinct instance_account_id) instance_account_id,
+    count(distinct case when win_date is not null then instance_account_id else null end) as won_accounts,
+    sum(is_expanded_mo1) as expanded_mo1_accounts,
+    sum(is_expanded_mo2) as expanded_mo2_accounts,
+    sum(is_expanded_mo3) as expanded_mo3_accounts,
+    sum(is_expanded_latest) as expanded_latest_accounts,
+    sum(is_churned_mo1) as churned_mo1_accounts,
+    sum(is_churned_mo2) as churned_mo2_accounts,
+    sum(is_churned_mo3) as churned_mo3_accounts,
+    sum(is_churned_latest) as churned_latest_accounts,
+from main
+group by 1
+order by 2 desc
+
+
+
+
+
+--- Customer expanded and then churned
 select *
 from presentation.growth_analytics.trial_accounts
+where instance_account_id = 25641812
 
 
-
-
-with tables_ as (
-    select [1,2,3] as a
-)
-
-select *
-from tables_
 
 
