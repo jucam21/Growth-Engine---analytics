@@ -1967,3 +1967,509 @@ group by 1
 order by 2 desc
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+----------------------------------------------------------------
+--- Expansion/Churn ARR query
+
+
+
+
+
+---------------------------------------------
+---- A/B test query
+
+--- Step 1
+--- List of accounts enrolled in Accelerated Cart experiment
+with expt as (
+    select distinct 
+        standard_experiment_name experiment_name, 
+        case 
+            when standard_experiment_participation_variation = 'treatment' then 'V1: Variant' 
+            when standard_experiment_participation_variation = 'control' then 'V0: Control' 
+            else NULL 
+        end as variation, 
+        instance_account_id, 
+        convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as expt_created_at_pt
+    from propagated_cleansed.pda.base_standard_experiment_account_participations participations
+    where 
+        lower(standard_experiment_name) like '%persistent_buy_plan_recommendations%'
+        and standard_experiment_participation_variation in ('treatment', 'control')
+        --- After launch date. Using date to remove testing accounts
+        and convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-11'
+),
+
+--- Step 2
+--- Check for duplicate assignments (account_id in more than 1 variant)
+dups as (
+    select 
+        instance_account_id, 
+        count(distinct variation) as num_variations, 
+        listagg(distinct variation, ', ') within group (order by variation) as variations
+    from expt
+    group by 1
+),
+
+--- Step 3
+--- Organize Account and Experiment Data via Account_id
+expt2_raw as (
+    select
+        e.experiment_name,
+        e.variation,
+        e.instance_account_id as account_id,
+        e.expt_created_at_pt,
+        date(dim_instance.instance_account_created_timestamp) account_created_at,
+        dim_instance.instance_account_subdomain subdomain,
+        dim_instance.instance_account_derived_type derived_account_type,
+        trials.trial_type,
+        trials.is_direct_buy,
+        dim_instance.instance_account_is_abusive is_abusive,
+        '--' as region, --, max(r.region) region <- field not in dim_instance
+        dim_instance.instance_account_address_country country,
+        '--' as pod_id, --, max(r.pod_id) pod_id <- field not in dim_instance
+        -- Active trial at enrollment date
+        iff(datediff('day', account_created_at, date(e.expt_created_at_pt)) <= 15, 1, 0) as active_trial_at_enrollment,
+        --Guardrail metrics
+        '--' as first_engagement_created, --, max(if(af.first_engagement_date is not null, 1, 0)) first_engagement_created <- field not in trials yet
+        iff(trials.first_ticket_created_date is not null, 1, 0) first_ticket_created,
+        '--' as first_hc_article_created, -- iff(trials.hc_article_created is not null, 1, 0) first_hc_article_created // field not in trials yet
+        iff(trials.agent_commented_date is not null, 1, 0) agent_commented,
+        iff(trials.second_agent_added_date is not null, 1, 0) hc_second_agent,
+        iff(trials.hc_created_date is not null, 1, 0) hc_created,
+        --Conversion & Singposts metrics
+        iff(trials.first_verified_date is not null, 1, 0) verified_trial,
+        iff(trials.first_shopping_cart_visit_timestamp is not null, 1, 0) first_cart_entrance_trial_accounts,
+        --- Wins 
+        iff(trials.win_date is not null, 1, 0) is_won,
+        iff(date_trunc('month', trials.win_date) = date_trunc('month', trials.instance_account_created_date),1,0) is_month0_win,
+        --- Wins from self-service active trials (15 day timeframe)
+        case 
+            when 
+                trials.win_date is not null 
+                and datediff('day', account_created_at, trials.win_date) <= 15
+                and lower(trials.sales_model_at_win) = 'self-service'
+                and is_direct_buy = false
+            then 1 else 0
+        end as win_ss_active,
+        case 
+            when 
+                trials.win_date is not null 
+                and datediff('day', account_created_at, trials.win_date) <= 15
+                and lower(trials.sales_model_at_win) = 'self-service'
+                and is_direct_buy = false
+            then trials.instance_account_arr_usd_at_win else 0
+        end as win_ss_active_arr,
+        trials.win_date,
+        iff(trials.win_date is not null and trials.win_date < dateadd('day', -30, current_date()), 1, 0) won_30d_ago,
+        iff(trials.win_date is not null, trials.instance_account_arr_usd_at_win, 0) arr_at_win,
+        iff(trials.win_date is not null, trials.instance_account_arr_usd_at_mo1, null) arr_at_mo1,
+        iff(trials.win_date is not null, trials.instance_account_arr_usd_at_mo3, null) arr_at_mo3,
+        iff(trials.win_date is not null, trials.instance_account_arr_usd_at_last_snapshot, null) arr_at_refresh,
+        '--' as arr_band_at_win, --, iff(trials.win_date is not null, arr_band_at_win, null) arr_band_at_win <- field not in trials yet
+        case when trials.is_personal_domain= true then 0 else 1 end as qualified_trial_flag,
+        trials.seats_capacity_at_win seats_at_win,
+        iff(trials.seats_capacity_at_win >= 6, '6+', to_char(trials.seats_capacity_at_win)) seats_at_win_group,
+        trials.product_mix_at_win,
+        --, trials.core_base_plan_at_win product_mix
+        trials.core_base_plan_at_win,
+        case
+            when trials.core_base_plan_at_win like '%Suite%' then 'Suite'
+            when trials.core_base_plan_at_win like '%Support%' then 'Support'
+            when trials.core_base_plan_at_win like '%Employee%' then 'Employee Service'
+            else null
+        end as support_plan_at_win,
+        trials.sales_model_at_win sales_model_at_win,
+        '--' as currentterm_at_win, --, max(currentterm_at_win) currentterm_at_win <- field not in trials
+        '--' as support_or_suite_win, --, max(case when w.is_suite_at_win = 1 and af.win_dt is not null then "Suite"
+        //        when ifnull(w.is_suite_at_win,0) = 0 and af.win_dt is not null then "Support"
+        //        else null end) support_or_suite_win <- fields not in trials
+        '--' as billing_period_at_win, --, max(if(w.max_billing_period_at_win >= 12, 'Annual', 'Monthly')) billing_period_at_win <- field not in trials
+        '--' as support_or_suite_plan_at_win, --, max(if(w.is_suite_at_win = 1, concat('Suite ', w.spp_suite_plan_at_win), concat('Support ', w.support_plan_at_win))) support_or_suite_plan_at_win	
+        trials.help_desk_size_grouped as crm_employee_size_band, --, string_agg(distinct af.crm_employee_size_band) crm_employee_size_band		 
+        '--' as crm_employee_size_subband,  --, string_agg(distinct af.crm_employee_size_subband) crm_employee_size_subband
+        --Experiment variations
+        trials.help_desk_size_grouped as employee_range_band,
+        d.num_variations,
+        '--' as is_test ,
+        '--' as is_invalid_account_type,
+        --, iff(trials.first_resolved_ticket_date is not null, 1, 0) first_ticket_resolved
+        --, iff(trials.go_live_date is not null, 1, 0) go_live
+
+        --- Case to join derived account either at win or at experiment enrollment
+        case when trials.win_date is not null then dateadd('day', -1, trials.win_date) else date(e.expt_created_at_pt) end as date_join_derived_account_type,
+        is_shopping_cart_visit_1hour
+    from expt e
+    left join dups d
+        on e.instance_account_id = d.instance_account_id
+    left join foundational.customer.dim_instance_accounts_daily_snapshot dim_instance
+        on e.instance_account_id = dim_instance.instance_account_id
+        and dim_instance.source_snapshot_date = (
+            select max(source_snapshot_date) 
+            from foundational.customer.dim_instance_accounts_daily_snapshot
+        )
+    left join presentation.growth_analytics.trial_accounts as trials
+        on trials.instance_account_id = e.instance_account_id
+),
+
+--- Step 3.1: Add derived account type at win date or enrollment date
+
+expt2 as (
+    select 
+        *,
+        dim_instance_v2.instance_account_derived_type as derived_account_type_at_win_or_enrollment
+    from expt2_raw expt2_raw_
+    --- Joining to extract derived account type at exp enrollment
+    left join foundational.customer.dim_instance_accounts_daily_snapshot dim_instance_v2
+        on expt2_raw_.account_id = dim_instance_v2.instance_account_id
+        and dim_instance_v2.source_snapshot_date = expt2_raw_.date_join_derived_account_type
+),
+
+--- First cart entry & source
+first_cart_entry as (
+    select 
+        account_id, 
+        cart_entrance as first_cart_entrance, 
+        row_number () over (partition by account_id order by created_at) as row_num
+    from (
+        select 
+            ev.instance_account_id account_id,
+            case 
+                when ev.standard_experiment_account_event_name = 'click_compare_plans' then 'Compare Plans'
+                when ev.standard_experiment_account_event_name = 'click_buy_your_trial' then 'Buy Your Trial'
+                else null 
+            end as cart_entrance, 
+            convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) as created_at
+        from expt2 e
+        inner join propagated_cleansed.pda.base_standard_experiment_account_events ev
+            on 
+                e.account_id = ev.instance_account_id
+                and ev.standard_experiment_name in ('billing_cart_optimization', 'persistent_buy_plan_recommendations')
+        where 
+            ev.standard_experiment_account_event_name in ('click_compare_plans', 'click_buy_your_trial')
+    )
+    qualify row_num = 1
+),
+
+events as (
+    select 
+        e.*, 
+        ev.standard_experiment_account_event_name event_name, 
+        convert_timezone('UTC', 'America/Los_Angeles', ev.created_timestamp) as created_at,
+        row_number () over (partition by ev.instance_account_id order by created_at) nth_event,
+        f.first_cart_entrance
+    from expt2 e
+    left join propagated_cleansed.pda.base_standard_experiment_account_events ev
+            on 
+                e.account_id = ev.instance_account_id
+                and ev.standard_experiment_name in ('billing_cart_optimization', 'persistent_buy_plan_recommendations')
+                and convert_timezone('UTC', 'America/Los_Angeles', ev.created_timestamp) >= '2025-08-11'
+    left join first_cart_entry f 
+        on f.account_id = e.account_id
+),
+        
+events_full_list as(
+    select distinct
+        instance_account_id as account_id,
+        --- Event flags
+        count(distinct case when standard_experiment_account_event_name = 'click_compare_plans' then account_id else null end) as click_compare_plans,
+        count(distinct case when standard_experiment_account_event_name = 'click_buy_your_trial' then account_id else null end) as click_buy_your_trial,
+        count(distinct case when standard_experiment_account_event_name = 'trial_recommendation_modal_auto_popup' then account_id else null end) as trial_modal_load_auto_popup,
+        count(distinct case when standard_experiment_account_event_name = 'trial_modal_load_compare_plans' then account_id else null end) as trial_modal_load_compare_plans,
+        count(distinct case when standard_experiment_account_event_name = 'click_trial_modal_auto_popup' then account_id else null end) as click_trial_modal_auto_popup,
+        count(distinct case when standard_experiment_account_event_name like '%click_trial_modal_buy_now%' then account_id else null end) as click_trial_modal_buy_now,
+        count(distinct case when standard_experiment_account_event_name = 'click_trial_select_all_plans' then account_id else null end) as click_trial_select_all_plans,
+        count(distinct case when standard_experiment_account_event_name = 'click_trial_modal_dismiss' then account_id else null end) as click_trial_modal_dismiss,
+        count(distinct case when standard_experiment_account_event_name = 'view_suite_plan' then account_id else null end) as view_suite_plan,
+        count(distinct case when standard_experiment_account_event_name = 'view_support_plan' then account_id else null end) as view_support_plan,
+        count(distinct case when standard_experiment_account_event_name = 'click_buy_now_suite_Professional' then account_id else null end) as click_buy_now_suite_professional,
+        count(distinct case when standard_experiment_account_event_name = 'click_buy_now_support_Professional' then account_id else null end) as click_buy_now_support_professional,
+        count(distinct case when standard_experiment_account_event_name = 'click_back_button_all_plans' then account_id else null end) as click_back_button_all_plans,
+        count(distinct case when standard_experiment_account_event_name = 'view_payment_modal_buy_now' then account_id else null end) as view_payment_modal_buy_now,
+        count(distinct case when standard_experiment_account_event_name = 'view_payment_buy_your_trial' then account_id else null end) as view_payment_buy_your_trial,
+        count(distinct case when standard_experiment_account_event_name = 'view_payment_compare_plans' then account_id else null end) as view_payment_compare_plans,
+        count(distinct case when standard_experiment_account_event_name = 'view_payment_modal_auto_popup' then account_id else null end) as view_payment_modal_auto_popup,
+        count(distinct case when standard_experiment_account_event_name = 'complete_purchase_buy_your_trial_trial' then account_id else null end) as complete_purchase_buy_your_trial_trial,
+        count(distinct case when standard_experiment_account_event_name = 'complete_purchase_modal_buy_now_trial' then account_id else null end) as complete_purchase_modal_buy_now_trial,
+        count(distinct case when standard_experiment_account_event_name = 'complete_purchase_compare_plans_trial' then account_id else null end) as complete_purchase_compare_plans_trial,
+        count(distinct case when standard_experiment_account_event_name = 'complete_purchase_modal_auto_popup' then account_id else null end) as complete_purchase_modal_auto_popup,
+        count(distinct case when standard_experiment_account_event_name = 'payment_successful_buy_your_trial' then account_id else null end) as payment_successful_buy_your_trial,
+        count(distinct case when standard_experiment_account_event_name = 'payment_successful_modal_buy_now' then account_id else null end) as payment_successful_modal_buy_now,
+        count(distinct case when standard_experiment_account_event_name = 'payment_successful_compare_plans' then account_id else null end) as payment_successful_compare_plans,
+        count(distinct case when standard_experiment_account_event_name = 'payment_successful_modal_auto_popup' then account_id else null end) as payment_successful_modal_auto_popup,
+    from propagated_cleansed.pda.base_standard_experiment_account_events
+    where 
+        standard_experiment_name in ('billing_cart_optimization', 'persistent_buy_plan_recommendations')
+        and convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-11'
+    group by 1
+),
+
+--- # First events for critical funnel steps
+first_events as (
+    select 
+        e.account_id, 
+        e.first_cart_entrance,
+        max(iff(nth_event = 1, e.event_name, null)) first_event,
+        min(iff(nth_event = 1, e.created_at, null)) first_event_at,
+  
+        --- First CTA click
+        min(iff(event_name like 'click_compare_plans', created_at, null)) first_click_compare_plans,
+        min(iff(event_name like 'click_buy_your_trial', created_at, null)) first_click_buy_your_trial,
+
+        --- Modal recommendation load
+        min(iff(event_name like 'trial_recommendation_modal_auto_popup', created_at, null)) first_load_trial_modal_load_auto_popup,
+        min(iff(event_name like 'trial_modal_load_compare_plans', created_at, null)) first_load_trial_modal_load_compare_plans,
+        min(iff(
+            event_name like 'trial_recommendation_modal_auto_popup' or event_name like 'trial_modal_load_compare_plans', created_at, null
+            )) first_load_modal_load,
+
+        --- Modal recommendation clicks
+        min(iff(event_name like 'click_trial_select_all_plans', created_at, null)) first_click_trial_select_all_plans,
+        min(iff(event_name like '%click_trial_modal_buy_now%', created_at, null)) first_click_trial_modal_buy_now,
+        min(iff(event_name like 'click_trial_modal_dismiss', created_at, null)) first_click_trial_modal_dismiss,
+        
+        --- Pricing lineup page
+        min(iff(event_name like 'view_suite_plan', created_at, null)) first_view_suite_plan,
+        min(iff(event_name like 'view_support_plan', created_at, null)) first_view_support_plan,
+        min(iff(event_name like '%click_buy_now_%', created_at, null)) first_click_buy_now_pricing_lineup,
+        min(iff(event_name like 'click_back_button_all_plans', created_at, null)) first_click_back_button_all_plans,
+
+        --- Payment page
+
+        --- View payment
+        min(iff(event_name like 'view_payment_modal_buy_now', created_at, null)) first_view_payment_modal_buy_now,
+        min(iff(event_name like 'view_payment_buy_your_trial', created_at, null)) first_view_payment_buy_your_trial,
+        min(iff(event_name like 'view_payment_compare_plans', created_at, null)) first_view_payment_compare_plans,
+        min(iff(event_name like 'view_payment_modal_auto_popup', created_at, null)) first_view_payment_modal_auto_popup,
+        --- All payment page visits from events above
+        min(iff(
+            event_name like '%view_payment%' and (event_name not like '%direct%' or event_name not like '%all_plans%'), created_at, null
+        )) first_view_payment,
+
+        --- Complete purchase
+        min(iff(event_name like 'complete_purchase_buy_your_trial_trial', created_at, null)) first_complete_purchase_buy_your_trial_trial,
+        min(iff(event_name like 'complete_purchase_modal_buy_now_trial', created_at, null)) first_complete_purchase_modal_buy_now_trial,
+        min(iff(event_name like 'complete_purchase_compare_plans_trial', created_at, null)) first_complete_purchase_compare_plans_trial,
+        min(iff(event_name like 'complete_purchase_modal_auto_popup', created_at, null)) first_complete_purchase_modal_auto_popup,
+        min(iff(
+            event_name like '%complete_purchase%' and (event_name not like '%direct%' or event_name not like '%all_plans%'), created_at, null
+        )) first_complete_purchase,
+
+        --- Payment successful
+        min(iff(event_name like 'payment_successful_buy_your_trial', created_at, null)) first_payment_successful_buy_your_trial,
+        min(iff(event_name like 'payment_successful_modal_buy_now', created_at, null)) first_payment_successful_modal_buy_now,
+        min(iff(event_name like 'payment_successful_compare_plans', created_at, null)) first_payment_successful_compare_plans,
+        min(iff(event_name like 'payment_successful_modal_auto_popup', created_at, null)) first_payment_successful_modal_auto_popup,
+        min(iff(
+            event_name like '%payment_successful%' and (event_name not like '%direct%' or event_name not like '%all_plans%'), created_at, null
+        )) first_payment_successful,
+
+    from events e
+    group by 1,2
+),
+
+-- ## Flag invalid trial/account types (DirectBuy, non-Suite Trial, tests, junk, fraud). Filter out all known testing accounts from the dataset
+main as (
+    select 
+        main_.*,
+        --- Wins from customers interacted modal
+        case 
+            when 
+                main_.win_ss_active = 1 
+                and events_full_list_.click_compare_plans is not null
+                and events_full_list_.click_buy_your_trial is not null
+            then 1 else 0 
+        end as is_won_2_cta_interacted,
+        case 
+            when 
+                main_.win_ss_active = 1 
+                and events_full_list_.click_compare_plans is not null
+                and events_full_list_.click_buy_your_trial is not null
+            then main_.win_ss_active_arr else 0 
+        end as is_won_2_cta_interacted_arr,
+        date(main_.expt_created_at_pt) expt_created_date,
+        events_full_list_.* exclude (account_id)
+    from (
+        select 
+            *,
+            iff(
+                is_direct_buy = true
+                or trial_type in ('Chat', 'Sell') 
+                or derived_account_type not in ('Active Trial', 'Expired Trial', 'Paying Instance', 'Cancelled', 'Deleted', 'Suspended')
+                -- // multiple assignment
+                or num_variations > 1 , 0, 1
+                ) is_valid
+        from (
+            select 
+                e.*,
+                iff(
+                    e.subdomain like 'z3n%' or e.subdomain like 'z4n%', 1, 0
+                    ) is_test,
+                iff(derived_account_type not in ('Trial', 'Trial - expired', 'Customer', 'Churned', 'Unclassified', 'Freemium', 'Cancelled'), 1, 0) is_invalid_account_type,
+                iff(ifnull(e.arr_at_win,0) < 10000, 0, 1) is_outlier_at_win,
+                iff(ifnull(e.arr_at_mo1,0) < 10000, 0, 1) is_outlier_at_mo1,
+                iff(ifnull(e.arr_at_win,0) < 10000 and ifnull(e.arr_at_mo1,0) < 10000, 0, 1) is_outlier,
+                --# Wins attribution: treatment & control
+                iff(first_complete_purchase_buy_your_trial_trial is null, 0, is_won) is_won_from_buy_your_trial,
+                iff(first_complete_purchase_modal_buy_now_trial is null, 0, is_won) is_won_after_modal_buy_now_click,
+                iff(first_complete_purchase_compare_plans_trial is null, 0, is_won) is_won_after_compare_plans_click,
+                iff(first_complete_purchase_modal_auto_popup is null, 0, is_won) is_won_from_modal_auto_popup,
+                ev.* exclude (account_id),
+            from expt2 e
+            left join first_events ev
+                on e.account_id = ev.account_id
+        ) 
+    ) main_
+    left join events_full_list events_full_list_
+        on events_full_list_.account_id = main_.account_id
+    where is_valid = 1
+    order by variation desc, account_id
+)
+
+select *, convert_timezone('UTC', 'America/Los_Angeles', current_timestamp) as updated_at
+from main
+where 
+  convert_timezone('UTC', 'America/Los_Angeles', expt_created_at_pt) <= '2025-09-03'
+  and (win_date is null or win_date <= '2025-09-03')
+--limit 10
+
+
+
+
+
+
+select max(source_snapshot_date)
+from presentation.product_analytics.paid_customer_universe_daily_snapshot
+
+
+select *
+from presentation.product_analytics.paid_customer_universe_daily_snapshot
+where instance_account_id = 25435870
+order by source_snapshot_date
+
+
+
+
+select *
+from presentation.product_analytics.paid_customer_universe_daily_snapshot
+where instance_account_id = 25510572
+order by source_snapshot_date
+
+
+
+
+select *
+from presentation.product_analytics.paid_customer_universe_daily_snapshot
+where instance_account_id = 25572770
+order by source_snapshot_date
+
+
+
+select finance.*
+from FOUNDATIONAL.FINANCE.FACT_RECURRING_REVENUE_DAILY_SNAPSHOT_ENRICHED finance
+left join foundational.customer.entity_mapping_daily_snapshot as mapping
+    on finance.billing_account_id = mapping.billing_account_id
+    and finance.service_date = mapping.source_snapshot_date
+where mapping.instance_account_id = 25572770
+order by finance.service_date
+
+
+
+
+
+
+
+
+select finance.*
+from FOUNDATIONAL.FINANCE.FACT_RECURRING_REVENUE_DAILY_SNAPSHOT_ENRICHED finance
+inner join foundational.customer.entity_mapping_daily_snapshot as mapping
+    on finance.billing_account_id = mapping.billing_account_id
+    and finance.service_date = mapping.source_snapshot_date
+    and mapping.instance_account_id = 25510572
+order by finance.service_date
+
+
+
+
+select *
+from presentation.growth_analytics.trial_accounts
+where instance_account_id = 25510572
+
+
+
+
+
+select *
+from presentation.growth_analytics.trial_accounts
+where instance_account_id = 25572770
+
+
+
+
+
+select 
+    instance_account_id,
+    instance_account_name,
+    source_snapshot_date,
+    instance_account_derived_type
+from foundational.customer.dim_instance_accounts_daily_snapshot
+--where instance_account_id = 25510572
+where instance_account_id = 25572770
+order by source_snapshot_date 
+
+
+
+
+select *
+from presentation.growth_analytics.trial_accounts
+where instance_account_id = 25615371
+
+
+--- Search churned accounts in experiment enrollments table
+
+
+select *
+from propagated_cleansed.pda.base_standard_experiment_account_participations participations
+where 
+    lower(standard_experiment_name) like '%persistent_buy_plan_recommendations%'
+    and standard_experiment_participation_variation in ('treatment', 'control')
+    and instance_account_id in (25510572, 25572770)
+    --- After launch date. Using date to remove testing accounts
+    and convert_timezone('UTC', 'America/Los_Angeles', created_timestamp) >= '2025-08-11'
+
+
+--- Query expansion/churn - first version of experiment
+
+
+select *
+from 
+
+
+with control as (
+
+)
+
+
+select *
+from presentation.growth_analytics.trial_accounts
+
+
+
+
+with tables_ as (
+    select [1,2,3] as a
+)
+
+select *
+from tables_
+
+
