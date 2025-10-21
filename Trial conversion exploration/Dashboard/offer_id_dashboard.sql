@@ -187,7 +187,11 @@ segment_events_all_tmp as (
         modal_buy_now.total_count as total_count_modal_buy_now,
         modal_buy_now.unique_count as unique_count_modal_buy_now,
         modal_see_all_plans.total_count as total_count_modal_see_all_plans,
-        modal_see_all_plans.unique_count as unique_count_modal_see_all_plans
+        modal_see_all_plans.unique_count as unique_count_modal_see_all_plans,
+        case 
+            when modal_buy_now.unique_count is not null or modal_see_all_plans.unique_count is not null 
+            then modal_load.account_id else null 
+        end as unique_cta_clicks
     from modal_load 
     left join modal_dismiss
         on modal_load.account_id = modal_dismiss.account_id

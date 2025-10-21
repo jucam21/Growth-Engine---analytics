@@ -2908,3 +2908,309 @@ where instance_account_id = 25641812
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-------------------------------------------------------------
+--- Query expansion/churn - Sep09 - Sep30
+
+
+with control_ as (
+    select column1 as account_id
+    from values 
+        (25726135),
+        (25726783),
+        (25726913),
+        (25727189),
+        (25465466),
+        (25728039),
+        (25729243),
+        (25729477),
+        (25550799),
+        (25729833),
+        (25730180),
+        (25730660),
+        (25731917),
+        (25732347),
+        (25732438),
+        (25732561),
+        (25733269),
+        (25733543),
+        (25734149),
+        (25734537),
+        (25735499),
+        (25735950),
+        (25736534),
+        (25737980),
+        (25738230),
+        (25738642),
+        (25740685),
+        (25741709),
+        (25742992),
+        (25743200),
+        (25743224),
+        (25743284),
+        (25743377),
+        (25743464),
+        (25744099),
+        (25744109),
+        (25744932),
+        (25745305),
+        (25746407),
+        (25746420),
+        (25747373),
+        (25747605),
+        (25748423),
+        (25750027),
+        (25750259),
+        (25752591),
+        (25752733),
+        (25756035),
+        (25757164),
+        (25758320),
+        (25762038),
+        (25763028),
+        (25765749),
+        (25766302),
+        (25767265),
+        (25767463),
+        (25768379),
+        (25770726),
+        (25771544),
+        (25773298),
+        (25773295),
+        (25778956)
+),
+
+variant_ as (
+    select column1 as account_id
+    from values 
+        (25726122),
+        (25726432),
+        (25727961),
+        (25727969),
+        (25729467),
+        (25729854),
+        (25730019),
+        (25730068),
+        (25730156),
+        (25730917),
+        (25730996),
+        (25732234),
+        (24295640),
+        (25732575),
+        (25733074),
+        (25735109),
+        (25735685),
+        (25736328),
+        (25737946),
+        (25738384),
+        (25739305),
+        (25740180),
+        (25740809),
+        (25742830),
+        (25743141),
+        (25743280),
+        (25743374),
+        (25742369),
+        (25745244),
+        (25745365),
+        (25745836),
+        (25747059),
+        (25747079),
+        (25747425),
+        (25748647),
+        (25748649),
+        (25749552),
+        (25392477),
+        (25751765),
+        (25752669),
+        (25753075),
+        (25754308),
+        (25754682),
+        (25754744),
+        (25754827),
+        (25755108),
+        (25756850),
+        (25757114),
+        (25757522),
+        (25763709),
+        (25765030),
+        (25765545),
+        (25765698),
+        (25511818),
+        (25767049),
+        (25767613),
+        (25767940),
+        (25768041),
+        (25770257),
+        (25770982),
+        (25771645),
+        (25773607),
+        (25774343),
+        (25778003),
+        (25779834),
+        (25780116),
+        (25780490)
+),
+
+expt_population as (
+    select 
+        'V0: Control' as variation,
+        account_id
+    from control_
+    union all
+    select 
+        'V1: Variant' as variation,
+        account_id
+    from variant_
+),
+
+main as (
+    select 
+        trial_accounts_.instance_account_id,
+        expt_population_.variation,
+        trial_accounts_.last_snapshot_date,
+        trial_accounts_.win_date,
+        trial_accounts_.instance_account_arr_usd_at_win arr_at_win,
+        trial_accounts_.instance_account_arr_usd_at_mo1 arr_at_mo1,
+        trial_accounts_.instance_account_arr_usd_at_mo2 arr_at_mo2,
+        trial_accounts_.instance_account_arr_usd_at_mo3 arr_at_mo3,
+        trial_accounts_.instance_account_arr_usd_at_last_snapshot arr_at_latest,
+        --- Flags to indicate data availability at each timepoint
+        case 
+            when trial_accounts_.mo1_date <= trial_accounts_.last_snapshot_date then 1 else 0
+        end as has_data_mo1,
+        case 
+            when trial_accounts_.mo2_date <= trial_accounts_.last_snapshot_date then 1 else 0
+        end as has_data_mo2,
+        case 
+            when trial_accounts_.mo3_date <= trial_accounts_.last_snapshot_date then 1 else 0
+        end as has_data_mo3,
+        case 
+            when has_data_mo1 = 1 then trial_accounts_.instance_account_arr_usd_at_win else 0 
+        end as has_data_arr_mo1,
+        case 
+            when has_data_mo2 = 1 then trial_accounts_.instance_account_arr_usd_at_win else 0 
+        end as has_data_arr_mo2,
+        case 
+            when has_data_mo3 = 1 then trial_accounts_.instance_account_arr_usd_at_win else 0 
+        end as has_data_arr_mo3,
+        --- Expansion & churn metrics
+        --- Expansion flags
+        case 
+            when 
+                trial_accounts_.mo1_date <= trial_accounts_.last_snapshot_date
+                and trial_accounts_.instance_account_arr_usd_at_mo1 > trial_accounts_.instance_account_arr_usd_at_win
+            then 1 else 0
+        end as is_expanded_mo1,
+        case 
+            when 
+                trial_accounts_.mo2_date <= trial_accounts_.last_snapshot_date
+                and trial_accounts_.instance_account_arr_usd_at_mo2 > trial_accounts_.instance_account_arr_usd_at_win
+            then 1 else 0
+        end as is_expanded_mo2,
+        case 
+            when 
+                trial_accounts_.mo3_date <= trial_accounts_.last_snapshot_date
+                and trial_accounts_.instance_account_arr_usd_at_mo3 > trial_accounts_.instance_account_arr_usd_at_win
+            then 1 else 0
+        end as is_expanded_mo3,
+        case 
+            when 
+                trial_accounts_.instance_account_arr_usd_at_last_snapshot > trial_accounts_.instance_account_arr_usd_at_win
+            then 1 else 0
+        end as is_expanded_latest,
+        --- Expansion amounts
+        case 
+            when is_expanded_mo1 = 1 
+            then trial_accounts_.instance_account_arr_usd_at_mo1 - trial_accounts_.instance_account_arr_usd_at_win 
+            else 0 
+        end as expansion_amount_mo1,
+        case 
+            when is_expanded_mo2 = 1 
+            then trial_accounts_.instance_account_arr_usd_at_mo2 - trial_accounts_.instance_account_arr_usd_at_win 
+            else 0 
+        end as expansion_amount_mo2,
+        case 
+            when is_expanded_mo3 = 1 
+            then trial_accounts_.instance_account_arr_usd_at_mo3 - trial_accounts_.instance_account_arr_usd_at_win 
+            else 0 
+        end as expansion_amount_mo3,
+        case 
+            when is_expanded_latest = 1 
+            then trial_accounts_.instance_account_arr_usd_at_last_snapshot - trial_accounts_.instance_account_arr_usd_at_win 
+            else 0 
+        end as expansion_amount_latest,
+        --- Churn flags
+        case 
+            when 
+                trial_accounts_.mo1_date <= trial_accounts_.last_snapshot_date
+                and (trial_accounts_.instance_account_arr_usd_at_mo1 = 0 or trial_accounts_.instance_account_arr_usd_at_mo1 is null)
+            then 1 else 0
+        end as is_churned_mo1,
+        case 
+            when 
+                (trial_accounts_.mo2_date <= trial_accounts_.last_snapshot_date
+                and (trial_accounts_.instance_account_arr_usd_at_mo2 = 0 or trial_accounts_.instance_account_arr_usd_at_mo2 is null))
+                or is_churned_mo1 = 1
+            then 1 else 0
+        end as is_churned_mo2,
+        case 
+            when 
+                (trial_accounts_.mo3_date <= trial_accounts_.last_snapshot_date
+                and (trial_accounts_.instance_account_arr_usd_at_mo3 = 0 or trial_accounts_.instance_account_arr_usd_at_mo3 is null))
+                or is_churned_mo2 = 1
+            then 1 else 0
+        end as is_churned_mo3,
+        case 
+            when 
+                trial_accounts_.instance_account_arr_usd_at_last_snapshot = 0 or trial_accounts_.instance_account_arr_usd_at_last_snapshot is null
+            then 1 else 0
+        end as is_churned_latest,
+        --- Churn amounts
+        case 
+            when is_churned_mo1 = 1
+            then trial_accounts_.instance_account_arr_usd_at_win
+            else 0
+        end as churn_amount_mo1,
+        case 
+            when is_churned_mo2 = 1
+            then trial_accounts_.instance_account_arr_usd_at_win
+            else 0
+        end as churn_amount_mo2,
+        case 
+            when is_churned_mo3 = 1
+            then trial_accounts_.instance_account_arr_usd_at_win    
+            else 0
+        end as churn_amount_mo3,
+        case 
+            when is_churned_latest = 1
+            then trial_accounts_.instance_account_arr_usd_at_win
+            else 0
+        end as churn_amount_latest
+    from presentation.growth_analytics.trial_accounts trial_accounts_
+    inner join expt_population expt_population_
+        on trial_accounts_.instance_account_id = expt_population_.account_id
+)
+
+
+select *, convert_timezone('UTC', 'America/Los_Angeles', current_timestamp) as updated_at
+from main
+
+
+
+
+
