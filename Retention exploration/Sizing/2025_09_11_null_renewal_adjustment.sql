@@ -151,6 +151,20 @@ limit 100
 
 
 
+
+select 
+    convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) as original_timestamp_pt,
+    account_id,
+    user_id
+from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2
+order by 1 desc
+limit 200
+
+
+
+
+
+
 --- It seems only 6-8 account ids lenghts are valid
 with lenghts as (
     select 
