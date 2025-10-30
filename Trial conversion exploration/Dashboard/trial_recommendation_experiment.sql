@@ -489,6 +489,35 @@ order by won_accounts_.instance_account_id, finance.service_date
 
 
 
+
+
+
+
+select 
+    mapping.instance_account_id,
+    finance.service_date,
+    finance.billing_account_id,
+    finance.list_price_arr_usd,
+    finance.gross_arr_usd,
+    finance.net_arr_usd,
+    --- Discounts
+    finance.temp_discount_arr_usd,
+    finance.recurring_discount_arr_usd,
+    finance.list_price_discount_arr_usd,
+    finance.nonrecurring_discount_arr_usd
+from foundational.finance.fact_recurring_revenue_daily_snapshot_enriched finance
+left join foundational.customer.entity_mapping_daily_snapshot as mapping
+    on 
+        finance.billing_account_id = mapping.billing_account_id
+        and finance.service_date = mapping.source_snapshot_date
+where mapping.instance_account_id = '25827566'
+order by 2
+limit 10
+
+
+
+
+
 ---------
 --- Check in zuora
 
