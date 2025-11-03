@@ -781,13 +781,206 @@ order by 1
 
 
 
+select distinct account_id
+from CLEANSED.SALESFORCE.SALESFORCE_OPPORTUNITY_SCD2
+limit 10
+
+
+
+
+select distinct account_id
+from CLEANSED.SALESFORCE.SALESFORCE_OPPORTUNITY_bcv
+limit 10
+
+
+0016R0000389G23QAE
+001PC00000RTq8XYAT
+0011E00001oAzTtQAK
+0016R00003KuhL4QAJ
+001PC00000M8yK9YAJ
+001PC00000PrBqNYAV
+0018000000zTW0PAAW
+001PC00000L5DTeYAN
+001PC00000OlnviYAB
+
+
+
+select *
+from CLEANSED.SALESFORCE.SALESFORCE_OPPORTUNITY_bcv
+where account_id = '0016R0000389G23QAE'
+
+
+
+select *
+from FOUNDATIONAL.CUSTOMER.DIM_CRM_OPPORTUNITIES_DAILY_SNAPSHOT_BCV
+where crm_account_id = '0016R0000389G23QAE'
+
+
+select *
+from FOUNDATIONAL.CUSTOMER.FACT_CRM_OPPORTUNITIES_DAILY_SNAPSHOT_bcv opps
+left join cleansed.salesforce.salesforce_user_bcv u
+on opps.CRM_USER_OWNER_ID = u.id
+where crm_account_id = '001PC00000RDAgTYAX'
+
+
+
+select *
+FROM functional.finance.sfa_crm_bookings_current
+where crm_account_id = '001PC00000OlnviYAB'
+
+
+
+
+FROM functional.finance.sfa_crm_bookings_current b
+
+LEFT JOIN last_date ld 
+    on ld.date = b.pro_forma_signature_date
+LEFT JOIN FOUNDATIONAL.FINANCE.DIM_DATE d
+	ON d.the_date = b.pro_forma_signature_date
+LEFT JOIN FOUNDATIONAL.FINANCE.DIM_DATE dd 
+	ON dd.the_date = ld.last_date
+left join cleansed.salesforce.salesforce_user_bcv u 
+    on b.opportunity_owner_id = u.id
+
+
 
 select 
-    is_startup_program, 
-    count(*) as total_accounts
-from presentation.growth_analytics.trial_accounts
+    *
+from FOUNDATIONAL.CUSTOMER.FACT_CRM_OPPORTUNITIES_DAILY_SNAPSHOT_bcv opps
+left join cleansed.salesforce.salesforce_user_bcv u
+on opps.CRM_USER_OWNER_ID = u.id
+left join FOUNDATIONAL.CUSTOMER.DIM_CRM_OPPORTUNITIES_DAILY_SNAPSHOT_BCV opps_2
+on opps.crm_opportunity_id = opps_2.CRM_OPPORTUNITY_ID
+where crm_account_id = '001PC00000RDAgTYAX'
+
+
+
+
+
+select 
+    u.name,
+    count(*) total_opps
+from FOUNDATIONAL.CUSTOMER.FACT_CRM_OPPORTUNITIES_DAILY_SNAPSHOT_bcv opps
+left join cleansed.salesforce.salesforce_user_bcv u
+on opps.CRM_USER_OWNER_ID = u.id
+left join FOUNDATIONAL.CUSTOMER.DIM_CRM_OPPORTUNITIES_DAILY_SNAPSHOT_BCV opps_2
+on opps.crm_opportunity_id = opps2.crm_opportunity_id
 group by 1
-order by 1
+order by 2 desc
+
+
+
+
+25232303
+25607453
+23863653
+25223058
+25037652
+25294736
+25788089
+24372869
+
+
+
+select *
+from foundational.customer.entity_mapping_daily_snapshot
+where instance_account_id = 25788089
+
+
+
+
+
+------------------------------------------------------------
+--- Validate sales touched flag
+
+with agent_logins as (
+    select distinct
+        agents.instance_account_id account_id,
+        agents.agent_last_login_timestamp as login_timestamp,
+        'agent_login' as login_type,
+    from propagated_foundational.product_agent_info.dim_agent_emails_daily_snapshot agents
+    inner join presentation.growth_analytics.trial_accounts trial_accounts_
+        on 
+            agents.instance_account_id = trial_accounts_.instance_account_id
+            --- Counting events before win date, or if win date is null
+            and (date_trunc('day', agents.agent_last_login_timestamp) <= trial_accounts_.win_date
+                 or trial_accounts_.win_date is null)
+    where 
+        agent_last_login_timestamp >= '2024-01-01'
+        and (agent_role in ('Admin', 'Billing Admin') or agent_is_owner = True)
+),
+
+--- Opps created in the last 2 months before login
+gtm_touched_raw as (
+    select 
+        agent_logins_.account_id,
+        date_trunc('month', agent_logins_.login_timestamp) as login_month,
+        listagg(distinct case 
+            when lower(opp_user.name) like '%sam hansen%' then 'online' 
+            when lower(opp_user.name) not like '%sam hansen%' then 'gtm_touched' 
+            when opp_user.id is null then 'not_touched'
+            else 'error'
+        end, ' / ') as gtm_touched_tmp,
+        case 
+            when gtm_touched_tmp like '%online%' and gtm_touched_tmp like '%gtm%' then 'gtm_touched & online' 
+            else gtm_touched_tmp 
+        end as gtm_touched
+    from agent_logins agent_logins_
+    left join foundational.customer.entity_mapping_daily_snapshot_bcv as mapping_bcv
+        on agent_logins_.account_id = mapping_bcv.instance_account_id
+    left join foundational.customer.fact_crm_opportunities_daily_snapshot_bcv opps
+        on mapping_bcv.crm_account_id = opps.crm_account_id
+    inner join foundational.customer.dim_crm_opportunities_daily_snapshot_bcv opps_create
+        on 
+            opps.crm_opportunity_id = opps_create.crm_opportunity_id
+            and date_trunc('month', opps_create.opportunity_created_date) <= date_trunc('month', agent_logins_.login_timestamp)
+            and date_trunc('month', opps_create.opportunity_created_date) >= date_trunc('month', agent_logins_.login_timestamp) - interval '2 months'
+    inner join cleansed.salesforce.salesforce_user_bcv opp_user
+        on 
+            opps.crm_user_owner_id = opp_user.id
+    group by 1,2
+    --order by 1,2,3
+),
+
+--- Most of them do not have a CRM account id. This is the main reason for Null opps
+crm_join as (
+    select 
+        agent_logins_.*,
+        mapping_bcv.crm_account_id
+    from agent_logins agent_logins_
+    left join foundational.customer.entity_mapping_daily_snapshot_bcv as mapping_bcv
+            on agent_logins_.account_id = mapping_bcv.instance_account_id
+)
+
+select 
+    gtm_touched,
+    count(*) as total_accounts,
+    count(distinct account_id) as unique_accounts
+from gtm_touched_raw
+group by all
+order by 1,2
+
+
+
+select distinct account_id
+from crm_join
+where crm_account_id is null
+limit 10
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ------------------------------------------------------------
 --- Logins new funnel
@@ -796,6 +989,7 @@ order by 1
 --- Include agent logins, as well as some segment events
 --- Ensuring events are from trialists only
 --- Therefore, only counting events before win date, or if win date is null
+--- Add gtm touched flag
 
 
 with agent_logins as (
@@ -990,12 +1184,45 @@ cart_visits as (
         and startup_flag = false
 ),
 
+--- Opps created in the last 2 months before login
+gtm_touched_raw as (
+    select 
+        agent_logins_.account_id,
+        date_trunc('month', agent_logins_.login_timestamp) as login_month,
+        listagg(distinct case 
+            when lower(opp_user.name) like '%sam hansen%' then 'online' 
+            when lower(opp_user.name) not like '%sam hansen%' then 'gtm_touched' 
+            when opp_user.id is null then 'not_touched'
+            else 'error'
+        end, ' / ') as gtm_touched_tmp,
+        case 
+            when gtm_touched_tmp like '%online%' and gtm_touched_tmp like '%gtm%' then 'gtm_touched & online' 
+            else gtm_touched_tmp 
+        end as gtm_touched
+    from logins_union agent_logins_
+    left join foundational.customer.entity_mapping_daily_snapshot_bcv as mapping_bcv
+        on agent_logins_.account_id = mapping_bcv.instance_account_id
+    left join foundational.customer.fact_crm_opportunities_daily_snapshot_bcv opps
+        on mapping_bcv.crm_account_id = opps.crm_account_id
+    inner join foundational.customer.dim_crm_opportunities_daily_snapshot_bcv opps_create
+        on 
+            opps.crm_opportunity_id = opps_create.crm_opportunity_id
+            and date_trunc('month', opps_create.opportunity_created_date) <= date_trunc('month', agent_logins_.login_timestamp)
+            and date_trunc('month', opps_create.opportunity_created_date) >= date_trunc('month', agent_logins_.login_timestamp) - interval '2 months'
+    inner join cleansed.salesforce.salesforce_user_bcv opp_user
+        on 
+            opps.crm_user_owner_id = opp_user.id
+    group by 1,2
+    --order by 1,2,3
+),
+
 logins_funnel as (
     select 
         logins_union_.*,
         --- Flags to measure if win/cart visit is from same month
         wins_.account_id wins_flag,
-        cart_visits_.account_id cart_visit_flag
+        cart_visits_.account_id cart_visit_flag,
+        coalesce(gtm_touched_raw_.gtm_touched, 'not_touched') as gtm_touched
     from logins_union logins_union_
     left join wins wins_
         on 
@@ -1005,19 +1232,23 @@ logins_funnel as (
         on 
             logins_union_.account_id = cart_visits_.account_id
             and date_trunc('month', cart_visits_.first_cart_visit) = date(date_trunc('month', logins_union_.login_timestamp))
+    left join gtm_touched_raw gtm_touched_raw_
+        on 
+            logins_union_.account_id = gtm_touched_raw_.account_id
+            and date_trunc('month', logins_union_.login_timestamp) = gtm_touched_raw_.login_month
 )
-
 
 select 
     date(date_trunc('month', login_timestamp)) login_month,
+    gtm_touched,
     count(*) as total_logins,
     count(distinct account_id) as unique_logins,
     count(distinct cart_visit_flag) as cart_visit_flag,
     count(distinct wins_flag) as wins_flag
 from logins_funnel
 where login_month >= '2025-01-01'
-group by 1
-order by 1
+group by all
+order by 1,2
 
 
 
@@ -1208,6 +1439,7 @@ where
 
 
 
+
 ----------------------------------------------
 
 --- Logins legacy queries
@@ -1261,3 +1493,90 @@ logins as (
         or emails.agent_is_owner = True
     group by emails.instance_account_id
 ),
+
+
+
+
+
+
+
+
+-------------------------------------------------------------
+--- Legacy GTM touched flag
+
+
+SELECT 
+
+b.year_quarter as close_year_quarter
+, d.week_of_quarter as week_of_qtr
+, b.pro_forma_market_segment_at_close_date as market_segment
+, b.pro_forma_region_at_close_date as region 
+, case when b.pro_forma_type_detail_at_freeze_date = 'New Business' then 'New Business' else 'Expansion' end as type
+, b.purchase_method
+, '--' as type_of_expansion
+, '--' as type_of_expansion_group
+, b.total_arr_deal_band_sec as total_booking_arr_band_primary
+, case when st.startup_flag = 1 then true else false end as startup_flag 
+, case  
+    when b.sales_motion = 'Online' and lower(u.name) not like '%sam hansen%' then 'Online w GTM touch'
+    when b.sales_motion = 'Online' and lower(u.name) like '%sam hansen%' then 'Online'
+    when b.sales_motion = 'Quoted' then 'Quoted' end as sales_motion_detail
+, sum(b.total_booking_arr_usd) AS total_bookings_arr
+, case when b.zendesk_suite_flag = true then sum(b.total_booking_arr_usd) else 0 end as suite_bookings_arr
+, case when b.zendesk_suite_flag = false then sum(b.total_booking_arr_usd) else 0 end as non_suite_bookings_arr
+, count(distinct b.crm_opportunity_id) AS deals
+, case when b.zendesk_suite_flag = true then count(distinct b.crm_opportunity_id) else 0 end as suite_deals
+, case when b.zendesk_suite_flag = false then count(distinct b.crm_opportunity_id) else 0 end as non_suite_deals
+, dd.week_of_quarter as max_week_of_qtr --
+, ld.last_date as latest_close_date --
+, b.pro_forma_signature_date as date_sale
+, d.quarter as quarter_of_year
+, d.day_of_quarter as day_of_quarter
+, d.year as year
+, d.week_of_year as week_of_year
+, case when d.day_name = 'Wed' then 1
+	   when d.day_name = 'Thu' then 2
+	   when d.day_name = 'Fri' then 3
+	   when d.day_name = 'Sat' then 4
+	   when d.day_name = 'Sun' then 5
+	   when d.day_name = 'Mon' then 6
+	   when d.day_name = 'Tue' then 7
+  end as day_of_week
+, d.day_of_year as day_of_year
+, d.month as month_of_year
+, b.sales_motion as sales_motion
+, b.zendesk_suite_flag as suite_booking_flag
+, gab.expansion_type as new_bucket_expansion 
+, '--' as product_detail_expansion 
+, '--' as billing_cycle_at_win 
+, gab.months_to_expand_band as months_to_expand_band --, b.months_to_expand_band
+, case when d.day_of_quarter <= dd.day_of_quarter - 1 then true else false end as qtd_flag
+, case when st.is_direct_buy = 1 then true else false end as direct_buy_flag
+, sum(ai.ai_bookings) as ai_bookings
+, sum(ai.ai_opp_count) as ai_opp_count
+, case when st.es_flag = 1 then true else false end as es_booking
+, case when st.crm_account_id is null then true else false end as other_flag
+
+FROM functional.finance.sfa_crm_bookings_current b
+
+LEFT JOIN last_date ld 
+    on ld.date = b.pro_forma_signature_date
+LEFT JOIN FOUNDATIONAL.FINANCE.DIM_DATE d
+	ON d.the_date = b.pro_forma_signature_date
+LEFT JOIN FOUNDATIONAL.FINANCE.DIM_DATE dd 
+	ON dd.the_date = ld.last_date
+left join cleansed.salesforce.salesforce_user_bcv u 
+    on b.opportunity_owner_id = u.id
+left join instance_type st 
+    on st.crm_account_id = b.crm_account_id
+left join ga_bookings gab 
+  on gab.opportunity_id = b.crm_opportunity_id
+left join ai_bookings ai 
+  on ai.crm_opportunity_id = b.crm_opportunity_id
+
+WHERE d.year >= 2024 
+ AND b.pro_forma_market_segment_at_close_date = 'Digital'
+
+GROUP BY ALL
+
+order by date_sale desc
