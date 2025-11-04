@@ -295,6 +295,35 @@ wins_attribution as (
         group by all
     ),
 
+    --- Autopopup wins attribution
+    autopopup_atr as (
+        select
+            load.account_id,
+            max(original_timestamp) as max_date_load
+        from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 load
+        --- Remove testing accounts
+        inner join presentation.growth_analytics.trial_accounts trial_accounts
+            on
+                trial_accounts.instance_account_id = load.account_id
+                and (trial_accounts.win_date is null or date(load.original_timestamp) <= trial_accounts.win_date)
+        where load.source = 'auto_trigger'
+        group by all
+    ),
+
+    no_autopopup_atr as (
+        select
+            load.account_id,
+            max(original_timestamp) as max_date_load
+        from cleansed.segment_support.growth_engine_trial_cta_1_modal_load_scd2 load
+        --- Remove testing accounts
+        inner join presentation.growth_analytics.trial_accounts trial_accounts
+            on
+                trial_accounts.instance_account_id = load.account_id
+                and (trial_accounts.win_date is null or date(load.original_timestamp) <= trial_accounts.win_date)
+        where load.source = 'CTA'
+        group by all
+    ),
+
     modal_funnel as (
         select
             modal_load_.*,
@@ -324,12 +353,31 @@ wins_attribution as (
                     or modal_buy_now_.max_date_buy_now is null
                 then 'See all plans click'
                 else 'Other'
-            end as win_cta_attribution
+            end as win_cta_attribution,
+            --- Modal load attribution
+            case
+                when 
+                    autopopup_.max_date_load is null and no_autopopup_.max_date_load is null
+                then 'No modal load'
+                when 
+                    autopopup_.max_date_load is not null 
+                    and (no_autopopup_.max_date_load is null or autopopup_.max_date_load > no_autopopup_.max_date_load)
+                then 'Autopopup'
+                when 
+                    no_autopopup_.max_date_load is not null 
+                    and (autopopup_.max_date_load is null or no_autopopup_.max_date_load > autopopup_.max_date_load)
+                then 'No autopopup'
+                else 'Other'
+            end as win_modal_attribution
         from modal_load_atr modal_load_
         left join modal_buy_now_atr modal_buy_now_
             on modal_load_.account_id = modal_buy_now_.account_id
         left join modal_see_all_plans_atr modal_see_all_plans_
             on modal_load_.account_id = modal_see_all_plans_.account_id
+        left join autopopup_atr autopopup_
+            on modal_load_.account_id = autopopup_.account_id
+        left join no_autopopup_atr no_autopopup_
+            on modal_load_.account_id = no_autopopup_.account_id
     )
 
     select *
@@ -345,6 +393,7 @@ segment_events_all as (
         wins.win_date,
         wins.is_won_arr,
         datediff(day, segment.loaded_date::date, wins.win_date::date) as days_to_win,
+        datediff(day, trial_accounts.instance_account_created_date::date, segment.loaded_date::date) as days_at_load,
         --- Win flags
         case when wins.win_date is not null then 1 else null end as is_won_all,
         case when wins.win_date is not null then segment.account_id else null end as is_won_unique,
@@ -367,6 +416,17 @@ segment_events_all as (
             then is_won_unique_ss
             else null
         end as wins_just_see_all_plans,
+        --- Autopopup vs no autopopup wins
+        case 
+            when win_modal_attribution = 'Autopopup'
+            then is_won_cta_unique
+            else null
+        end as wins_autopopup,
+        case 
+            when win_modal_attribution = 'No autopopup'
+            then is_won_cta_unique
+            else null
+        end as wins_no_autopopup,
         --- Duplicating it to not break the dashboards
         is_won_cta_unique as wins_both,
         case 
@@ -387,10 +447,10 @@ segment_events_all as (
             else '9, Other plan won'
         end as core_base_plan_at_win,
         --- Trials extra info
-        wins.region,
-        wins.help_desk_size_grouped,
-        wins.instance_account_created_date,
-        wins.seats_capacity_band_at_win,
+        trial_accounts.region,
+        trial_accounts.help_desk_size_grouped,
+        trial_accounts.instance_account_created_date,
+        trial_accounts.seats_capacity_band_at_win,
     from segment_events_all_tmp segment
     left join wins_attribution wins
         on 
@@ -402,7 +462,8 @@ segment_events_all as (
         on 
             segment.crm_account_id = crms.crm_account_id
             and date(segment.loaded_date) = crms.source_snapshot_date
-
+    left join presentation.growth_analytics.trial_accounts trial_accounts
+        on segment.account_id = trial_accounts.instance_account_id
 )
 
 select *, CONVERT_TIMEZONE('UTC', 'America/Los_Angeles', CURRENT_TIMESTAMP) as updated_at
