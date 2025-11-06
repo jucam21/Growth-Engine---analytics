@@ -4,7 +4,7 @@
 --- Create table with all data
 
 --create or replace table sandbox.juan_salgado.ge_dashboard_test_more_vars as
-create or replace table sandbox.juan_salgado.ge_dashboard_test as
+create or replace table _sandbox_juan_salgado.public.ge_dashboard_test as
 
 -- Step 1: Segment events
 
