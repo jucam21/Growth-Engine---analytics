@@ -10,7 +10,7 @@
 --- For redeemed accounts, we take the record with the redemption
 --- For non-redeemed accounts, we take the most recent record
 
-create or replace table sandbox.juan_salgado.ge_growth_metrics_test as
+create or replace table _sandbox_juan_salgado.public.ge_growth_metrics_test as
 
 with redeemed as (
     select
