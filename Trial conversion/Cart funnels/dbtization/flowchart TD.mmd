@@ -1,0 +1,60 @@
+flowchart TD
+    subgraph Step0["Step 0: Load Trial Accounts Data"]
+        A[Trial Accounts Table]
+        A --> accounts_CTE[CTE: accounts]
+    end
+
+    subgraph Step1["Step 1: Track User Interactions"]
+        accounts_CTE --> cta_click_CTE["CTE: cta_click (CTA clicks)"]
+        accounts_CTE --> modal_load_CTE["CTE: modal_load (Modal loads)"]
+        modal_load_CTE --> modal_buy_now_CTE["CTE: modal_buy_now (Buy Now clicks)"]
+        accounts_CTE --> modal_see_all_plans_CTE["CTE: modal_see_all_plans (See All Plans clicks)"]
+    end
+
+    subgraph Step2["Step 2: Plans & Payments"]
+        plan_lineup_CTE["Plan lineup CTE"]
+        payment_page_visits_CTE["Payment Page Visits (Support, Suite, Trial)"]
+        payment_submission_CTE["Payment Submission CTEs"]
+
+        plan_lineup_CTE
+        payment_page_visits_CTE
+        payment_submission_CTE
+    end
+
+    subgraph Step3["Step 3: Build Funnels"]
+        buy_trial_funnel["Buy Your Trial Funnel"]
+        compare_plans_funnel["Compare Plans Funnel"]
+
+        cta_click_CTE --> buy_trial_funnel
+        payment_page_visits_CTE --> buy_trial_funnel
+        payment_submission_CTE --> buy_trial_funnel
+
+        cta_click_CTE --> compare_plans_funnel
+        modal_load_CTE --> compare_plans_funnel
+        modal_buy_now_CTE --> compare_plans_funnel
+        modal_see_all_plans_CTE --> compare_plans_funnel
+
+        plan_lineup_CTE --> compare_plans_funnel
+        payment_page_visits_CTE --> compare_plans_funnel
+        payment_submission_CTE --> compare_plans_funnel
+    end
+
+    subgraph Step4["Step 4: Combine Funnels"]
+        buy_trial_funnel --> master_cart_funnel["master_cart_funnel (Union All)"]
+        compare_plans_funnel --> master_cart_funnel
+    end
+
+    subgraph Step5["Step 5: Join With Win Info"]
+        master_cart_funnel --> master_cart_funnel_wins["master_cart_funnel_wins"]
+        accounts_CTE --> master_cart_funnel_wins
+    end
+
+    subgraph Step6["Step 6: Win Attribution"]
+        master_cart_funnel_wins --> win_attribution["win_attribution"]
+        win_attribution --> master_cart_funnel_wins_attribution["master_cart_funnel_wins_attribution"]
+    end
+
+    subgraph Step7["Step 7: Flags & Output"]
+        master_cart_funnel_wins_attribution --> flags["Add flags for funnel/win indicators"]
+        flags --> final_output["Final Select with Timestamp"]
+    end
