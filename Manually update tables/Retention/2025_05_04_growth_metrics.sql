@@ -16,7 +16,7 @@ with redeemed as (
     select
         *,
         'Redeemed' as data_type
-    from sandbox.juan_salgado.ge_dashboard_test
+    from _sandbox_juan_salgado.public.ge_dashboard_test
     where unique_count_work_modal_2_click is not null
 ),
 
@@ -27,7 +27,7 @@ row_number() over (
             order by a.loaded_date desc
         ) as rank,
         'Not redeemed' as data_type
-from sandbox.juan_salgado.ge_dashboard_test as a
+from _sandbox_juan_salgado.public.ge_dashboard_test as a
 left join redeemed as b
 on a.account_id = b.account_id
 where b.account_id is null
