@@ -523,6 +523,192 @@ where account_id = 25606315
 
 
 
+--- List of accounts with offer id problems
+
+with clicked_ids as (
+    select distinct account_id, offer_id
+    from presentation.growth_analytics.growth_engine_retention_coupon_funnel
+    where unique_count_work_modal_2_click is not null
+), 
+
+redeemed_ids as (
+    select distinct account_id, offer_id
+    from presentation.growth_analytics.growth_engine_retention_coupon_funnel
+    where zuora_unique_coupon_redeemed is not null
+)
+
+select 
+    clicked_ids.account_id,
+    redeemed_ids.account_id as redeemed_account_id,
+    clicked_ids.offer_id as clicked_offer_id,
+    redeemed_ids.offer_id as redeemed_offer_id
+from clicked_ids
+full outer join redeemed_ids
+    on clicked_ids.account_id = redeemed_ids.account_id
+order by 1
+
+
+
+
+select distinct account_id, offer_id
+from propagated_cleansed.segment_support.growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2
+where account_id = 24876658
+
+
+
+select column1 as account_id, column2 as offer_id
+from values
+    (20630105, '01JWEW5QV47BW7TPJWKZ5J28D4'),
+    (22882722, '01K11559NA4SSHVRNMBY2T0GKA'),
+    (19098061, '01JWEW5QV4XR5S7QM1SKWZ5KZC'),
+    (24318264, '01JWEW5QV4ZHNDVJ5TJS36WHZJ'),
+    (17928694, '01JWEW5QV34JPZKKRZSEP72CC2'),
+    (16388204, '01JWEW5QV47BW7TPJWKZ5J28D4'),
+    (24876658, '01JWEW5QV4XR5S7QM1SKWZ5KZC'),
+    (24372946, '01JWEW5QV34JPZKKRZSEP72CC2'),
+    (24869948, '01JWEW5QV47BW7TPJWKZ5J28D4'),
+    (25057750, '01JWEW5QV36QQXNZCRBAXR3DJV'),
+    (25598882, '01JWEW5QV47BW7TPJWKZ5J28D4'),
+    (25606315, '01JWEW5QV47BW7TPJWKZ5J28D4'),
+    (22882722, '01JWEW5QV48Q7EFRT4G5Q3G161'),
+    (17700799, '01JWEW5QV48Q7EFRT4G5Q3G161'),
+    (21786649, '01JWEW5QV34JPZKKRZSEP72CC2'),
+    (19773013, '01JWEW5QV36QQXNZCRBAXR3DJV'),
+    (25640803, '01JWEW5QV48Q7EFRT4G5Q3G161')
+;
+
+
+
+--- Check if new table solves it
+with clicked_ids as (
+    select distinct account_id, offer_id
+    from _sandbox_juan_salgado.public.ge_dashboard_test
+    where unique_count_work_modal_2_click is not null
+), 
+
+redeemed_ids as (
+    select distinct account_id, offer_id
+    from _sandbox_juan_salgado.public.ge_dashboard_test
+    where zuora_unique_coupon_redeemed is not null
+)
+
+select 
+    clicked_ids.account_id,
+    redeemed_ids.account_id as redeemed_account_id,
+    clicked_ids.offer_id as clicked_offer_id,
+    redeemed_ids.offer_id as redeemed_offer_id
+from clicked_ids
+full outer join redeemed_ids
+    on clicked_ids.account_id = redeemed_ids.account_id
+order by 1
+
+
+
+
+
+--- Check column names
+
+select 
+    min(loaded_date) as min_loaded_date,
+    max(loaded_date) as max_loaded_date
+from _sandbox_juan_salgado.public.ge_dashboard_test
+
+
+select 
+    min(loaded_date) as min_loaded_date,
+    max(loaded_date) as max_loaded_date,
+    count(*) as tot_rows,
+    count(distinct account_id) as tot_accounts,
+    count(distinct unique_count_work_modal_2_click) as tot_work_modal_2_click,
+    count(distinct zuora_unique_coupon_redeemed) as tot_coupons_redeemed
+from _sandbox_juan_salgado.public.ge_dashboard_test
+
+
+
+select *
+from _sandbox_juan_salgado.public.ge_dashboard_test
+limit 1
+
+select *
+from PRESENTATION.GROWTH_ANALYTICS.GROWTH_ENGINE_RETENTION_COUPON_FUNNEL
+limit 1
+
+
+
+
+select 
+    min(loaded_date) as min_loaded_date,
+    max(loaded_date) as max_loaded_date,
+    count(*) as tot_rows,
+    count(distinct account_id) as tot_accounts,
+    count(distinct unique_count_work_modal_2_click) as tot_work_modal_2_click,
+    count(distinct zuora_unique_coupon_redeemed) as tot_coupons_redeemed
+from PRESENTATION.GROWTH_ANALYTICS.GROWTH_ENGINE_RETENTION_COUPON_FUNNEL
+
+
+
+
+
+
+select 
+    shard_id,
+    count(*) as tot_records,
+    count(distinct accounts.id) as tot_accounts,
+    count(distinct case when lower(agents.agent_email) not like '%z3%' then accounts.id else null end) as tot_non_z3_accounts
+from propagated_formatted.accountsdb.accounts accounts
+left join propagated_foundational.product_agent_info.dim_agent_emails_bcv agents
+    on accounts.id = agents.instance_account_id
+where 
+    accounts.shard_id = 26
+group by 1
+order by 1
+
+
+
+
+
+
+select 
+    accounts.id as account_id,
+    agents.agent_email
+from propagated_formatted.accountsdb.accounts accounts
+left join propagated_foundational.product_agent_info.dim_agent_emails_bcv agents
+    on accounts.id = agents.instance_account_id
+where 
+    accounts.shard_id = 26
+
+
+select *
+from propagated_formatted.accountsdb.accounts accounts
+where 
+    accounts.shard_id = 26
+
+
+
+
+
+
+
+
+select 
+    shard_config.pod,
+    count(*) as tot_records,
+    count(distinct accounts.id) as tot_accounts,
+    count(distinct 
+            case when lower(accounts.subdomain) not like '%z3n%' and lower(accounts.subdomain) not like '%z4n%' 
+            then accounts.id else null 
+            end) as tot_non_z3_accounts
+from propagated_formatted.accountsdb.accounts accounts
+left join propagated_foundational.product_accounts.lookup_application_shards_configs shard_config
+    on accounts.shard_id = shard_config.shard_id
+--inner join foundational.customer.entity_mapping_daily_snapshot_bcv mapping
+--    on accounts.id = mapping.instance_account_id
+where 
+    shard_config.pod = 26
+    and accounts.deleted_at is null
+group by 1
+order by 1
+
 
 
 

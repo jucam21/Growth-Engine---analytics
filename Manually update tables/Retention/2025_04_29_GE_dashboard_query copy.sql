@@ -4,7 +4,7 @@
 --- Create table with all data
 
 --create or replace table sandbox.juan_salgado.ge_dashboard_test_more_vars as
-create or replace table _sandbox_juan_salgado.public.ge_dashboard_test as
+--create or replace table _sandbox_juan_salgado.public.ge_dashboard_test as
 
 -- Step 1: Segment events
 
@@ -14,19 +14,16 @@ create or replace table _sandbox_juan_salgado.public.ge_dashboard_test as
 -- Prompt events
 
 --- Added UNION code to take into account both segment event sources
-
 with prompt_load_union as (
     select account_id,
         offer_id,
         promo_code_id,
         original_timestamp 
-        from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_load_1_scd2
+    from {{ source('cleansed_segment_central_admin', 'growth_engine_adminhomebanner1_prompt_load_1_scd2') }}
     union all
     select 
-        --- Case to pull account id from either agent emails or directly from segment table
         case
             when segment.account_id is null then coalesce(instance.instance_account_id, user_id.instance_account_id)
-            --- Between 6-8 chars is the length of a valid account id. Majority are 8
             when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
             when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
             else null
@@ -34,12 +31,11 @@ with prompt_load_union as (
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_load_1_scd2 segment
+    from {{ ref('cleansed_segment_support', 'growth_engine_adminhomebanner1_prompt_load_1_scd2') }} segment
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
         on segment.account_id = instance.agent_id
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv user_id
         on segment.user_id = user_id.agent_id
-    -- Date when support segment started capturing data
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
@@ -47,13 +43,12 @@ prompt_click_union as (
     select account_id,
         offer_id,
         promo_code_id,
-        original_timestamp  from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_claim_offer_click_1_scd2
+        original_timestamp  
+    from {{ source('cleansed_segment_central_admin', 'growth_engine_adminhomebanner1_prompt_claim_offer_click_1_scd2') }}
     union all
     select 
-       --- Case to pull account id from either agent emails or directly from segment table
         case
             when segment.account_id is null then coalesce(instance.instance_account_id, user_id.instance_account_id)
-            --- Between 6-8 chars is the length of a valid account id. Majority are 8
             when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
             when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
             else null
@@ -61,7 +56,7 @@ prompt_click_union as (
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_claim_offer_click_1_scd2 segment
+    from {{ ref('cleansed_segment_support', 'growth_engine_adminhomebanner1_prompt_claim_offer_click_1_scd2') }} segment
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
         on segment.account_id = instance.agent_id
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv user_id
@@ -73,13 +68,12 @@ prompt_dismiss_union as (
     select account_id,
         offer_id,
         promo_code_id,
-        original_timestamp  from cleansed.segment_central_admin.growth_engine_adminhomebanner1_prompt_dismiss_offer_1_scd2
+        original_timestamp  
+    from {{ source('cleansed_segment_central_admin', 'growth_engine_adminhomebanner1_prompt_dismiss_offer_1_scd2') }}
     union all
     select
-        --- Case to pull account id from either agent emails or directly from segment table
         case
             when segment.account_id is null then coalesce(instance.instance_account_id, user_id.instance_account_id)
-            --- Between 6-8 chars is the length of a valid account id. Majority are 8
             when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
             when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
             else null
@@ -87,7 +81,7 @@ prompt_dismiss_union as (
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_adminhomebanner1_prompt_dismiss_offer_1_scd2 segment
+    from {{ ref('cleansed_segment_support', 'growth_engine_adminhomebanner1_prompt_dismiss_offer_1_scd2') }} segment
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
         on segment.account_id = instance.agent_id
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv user_id
@@ -99,13 +93,12 @@ work_modal_1_click_union as (
     select account_id,
         offer_id,
         promo_code_id,
-        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_claim_offer_click_2_scd2
+        original_timestamp  
+    from {{ source('cleansed_segment_central_admin', 'growth_engine_couponmodal_claim_offer_click_2_scd2') }}
     union all
     select
-        --- Case to pull account id from either agent emails or directly from segment table
         case
             when segment.account_id is null then coalesce(instance.instance_account_id, user_id.instance_account_id)
-            --- Between 6-8 chars is the length of a valid account id. Majority are 8
             when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
             when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
             else null
@@ -113,7 +106,7 @@ work_modal_1_click_union as (
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_claim_offer_click_2_scd2 segment
+    from {{ ref('cleansed_segment_support', 'growth_engine_couponmodal_claim_offer_click_2_scd2') }} segment
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
         on segment.account_id = instance.agent_id
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv user_id
@@ -125,13 +118,12 @@ work_modal_1_dismiss_union as (
     select account_id,
         offer_id,
         promo_code_id,
-        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_dismiss_offer_1_scd2
+        original_timestamp  
+    from {{ source('cleansed_segment_central_admin', 'growth_engine_couponmodal_dismiss_offer_1_scd2') }}
     union all
     select
-        --- Case to pull account id from either agent emails or directly from segment table
         case
             when segment.account_id is null then coalesce(instance.instance_account_id, user_id.instance_account_id)
-            --- Between 6-8 chars is the length of a valid account id. Majority are 8
             when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
             when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
             else null
@@ -139,7 +131,7 @@ work_modal_1_dismiss_union as (
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_dismiss_offer_1_scd2 segment
+    from {{ ref('cleansed_segment_support', 'growth_engine_couponmodal_dismiss_offer_1_scd2') }} segment
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
         on segment.account_id = instance.agent_id
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv user_id
@@ -151,13 +143,12 @@ work_modal_2_click_union as (
     select account_id,
         offer_id,
         promo_code_id,
-        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2
+        original_timestamp  
+    from {{ source('cleansed_segment_central_admin', 'growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2') }}
     union all
     select
-        --- Case to pull account id from either agent emails or directly from segment table
         case
             when segment.account_id is null then coalesce(instance.instance_account_id, user_id.instance_account_id)
-            --- Between 6-8 chars is the length of a valid account id. Majority are 8
             when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
             when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
             else null
@@ -165,7 +156,7 @@ work_modal_2_click_union as (
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2 segment
+    from {{ ref('cleansed_segment_support', 'growth_engine_couponmodal_work_modal_2_apply_offer_click_1_scd2') }} segment
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
         on segment.account_id = instance.agent_id
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv user_id
@@ -177,13 +168,12 @@ work_modal_2_dismiss_union as (
     select account_id,
         offer_id,
         promo_code_id,
-        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_work_modal_2_dismiss_offer_1_scd2
+        original_timestamp  
+    from {{ source('cleansed_segment_central_admin', 'growth_engine_couponmodal_work_modal_2_dismiss_offer_1_scd2') }}
     union all
     select
-        --- Case to pull account id from either agent emails or directly from segment table
         case
             when segment.account_id is null then coalesce(instance.instance_account_id, user_id.instance_account_id)
-            --- Between 6-8 chars is the length of a valid account id. Majority are 8
             when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
             when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
             else null
@@ -191,7 +181,7 @@ work_modal_2_dismiss_union as (
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_work_modal_2_dismiss_offer_1_scd2 segment
+    from {{ ref('cleansed_segment_support', 'growth_engine_couponmodal_work_modal_2_dismiss_offer_1_scd2') }} segment
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
         on segment.account_id = instance.agent_id
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv user_id
@@ -203,13 +193,12 @@ work_modal_2_go_back_union as (
     select account_id,
         offer_id,
         promo_code_id,
-        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_go_back_scd2
+        original_timestamp  
+    from {{ source('cleansed_segment_central_admin', 'growth_engine_couponmodal_go_back_scd2') }}
     union all
     select
-        --- Case to pull account id from either agent emails or directly from segment table
         case
             when segment.account_id is null then coalesce(instance.instance_account_id, user_id.instance_account_id)
-            --- Between 6-8 chars is the length of a valid account id. Majority are 8
             when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
             when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
             else null
@@ -217,7 +206,7 @@ work_modal_2_go_back_union as (
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_go_back_scd2 segment
+    from {{ ref('cleansed_segment_support', 'growth_engine_couponmodal_go_back_scd2') }} segment
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
         on segment.account_id = instance.agent_id
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv user_id
@@ -229,13 +218,12 @@ follow_up_close_union as (
     select account_id,
         offer_id,
         promo_code_id,
-        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_close_scd2
+        original_timestamp  
+    from {{ source('cleansed_segment_central_admin', 'growth_engine_couponmodal_subscription_submitted_close_scd2') }}
     union all
     select
-        --- Case to pull account id from either agent emails or directly from segment table
         case
             when segment.account_id is null then coalesce(instance.instance_account_id, user_id.instance_account_id)
-            --- Between 6-8 chars is the length of a valid account id. Majority are 8
             when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
             when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
             else null
@@ -243,7 +231,7 @@ follow_up_close_union as (
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_close_scd2 segment
+    from {{ ref('cleansed_segment_support', 'growth_engine_couponmodal_subscription_submitted_close_scd2') }} segment
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
         on segment.account_id = instance.agent_id
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv user_id
@@ -255,13 +243,12 @@ follow_up_dismiss_union as (
     select account_id,
         offer_id,
         promo_code_id,
-        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_dismiss_scd2
+        original_timestamp  
+    from {{ source('cleansed_segment_central_admin', 'growth_engine_couponmodal_subscription_submitted_dismiss_scd2') }}
     union all
     select
-        --- Case to pull account id from either agent emails or directly from segment table
         case
             when segment.account_id is null then coalesce(instance.instance_account_id, user_id.instance_account_id)
-            --- Between 6-8 chars is the length of a valid account id. Majority are 8
             when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
             when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
             else null
@@ -269,7 +256,7 @@ follow_up_dismiss_union as (
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_dismiss_scd2 segment
+    from {{ ref('cleansed_segment_support', 'growth_engine_couponmodal_subscription_submitted_dismiss_scd2') }} segment
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
         on segment.account_id = instance.agent_id
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv user_id
@@ -281,13 +268,12 @@ follow_up_subscription_union as (
     select account_id,
         offer_id,
         promo_code_id,
-        original_timestamp  from cleansed.segment_central_admin.growth_engine_couponmodal_subscription_submitted_subscription_details_scd2
+        original_timestamp  
+    from {{ source('cleansed_segment_central_admin', 'growth_engine_couponmodal_subscription_submitted_subscription_details_scd2') }}
     union all
     select
-        --- Case to pull account id from either agent emails or directly from segment table
         case
             when segment.account_id is null then coalesce(instance.instance_account_id, user_id.instance_account_id)
-            --- Between 6-8 chars is the length of a valid account id. Majority are 8
             when length(segment.account_id) >= 6 and length(segment.account_id) <= 8 then segment.account_id
             when length(segment.account_id) < 6 or length(segment.account_id) > 8 then instance.instance_account_id
             else null
@@ -295,7 +281,7 @@ follow_up_subscription_union as (
         offer_id,
         promo_code_id,
         original_timestamp 
-    from propagated_cleansed.segment_support.growth_engine_couponmodal_subscription_submitted_subscription_details_scd2 segment
+    from {{ ref('cleansed_segment_support', 'growth_engine_couponmodal_subscription_submitted_subscription_details_scd2') }} segment
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv instance
         on segment.account_id = instance.agent_id
     left join propagated_foundational.product_agent_info.dim_agent_emails_bcv user_id
@@ -303,186 +289,138 @@ follow_up_subscription_union as (
     where convert_timezone('UTC', 'America/Los_Angeles', original_timestamp) >= '2025-08-14' 
 ),
 
---- Manually adjust some offer id values due to some inconsistencies.
---- They sent the account_offer_id, not the offer_id, during some time.
-
-correct_offer_mappings as (
-    select column1 as account_id, column2 as offer_id
-    from values
-        (20630105, '01JWEW5QV47BW7TPJWKZ5J28D4'),
-        (22882722, '01K11559NA4SSHVRNMBY2T0GKA'),
-        (19098061, '01JWEW5QV4XR5S7QM1SKWZ5KZC'),
-        (24318264, '01JWEW5QV4ZHNDVJ5TJS36WHZJ'),
-        (17928694, '01JWEW5QV34JPZKKRZSEP72CC2'),
-        (16388204, '01JWEW5QV47BW7TPJWKZ5J28D4'),
-        (24876658, '01JWEW5QV4XR5S7QM1SKWZ5KZC'),
-        (24372946, '01JWEW5QV34JPZKKRZSEP72CC2'),
-        (24869948, '01JWEW5QV47BW7TPJWKZ5J28D4'),
-        (25057750, '01JWEW5QV36QQXNZCRBAXR3DJV'),
-        (25598882, '01JWEW5QV47BW7TPJWKZ5J28D4'),
-        (25606315, '01JWEW5QV47BW7TPJWKZ5J28D4'),
-        (22882722, '01JWEW5QV48Q7EFRT4G5Q3G161'),
-        (17700799, '01JWEW5QV48Q7EFRT4G5Q3G161'),
-        (21786649, '01JWEW5QV34JPZKKRZSEP72CC2'),
-        (19773013, '01JWEW5QV36QQXNZCRBAXR3DJV'),
-        (25640803, '01JWEW5QV48Q7EFRT4G5Q3G161')
-),
-
 prompt_load as (
     select
-        prompt_load_union_.account_id,
-        coalesce(correct_offer_mappings_.offer_id, prompt_load_union_.offer_id) as offer_id,
-        prompt_load_union_.promo_code_id,
-        prompt_load_union_.account_id as unique_count,
-        date_trunc('day', prompt_load_union_.original_timestamp) as date,
+        account_id,
+        offer_id,
+        promo_code_id,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        prompt_load_union prompt_load_union_
-    left join correct_offer_mappings correct_offer_mappings_
-        on prompt_load_union_.account_id = correct_offer_mappings_.account_id
+        prompt_load_union
     group by all
 ),
 prompt_click as (
     select
-        prompt_click_union_.account_id,
-        coalesce(correct_offer_mappings_.offer_id, prompt_click_union_.offer_id) as offer_id,
-        prompt_click_union_.promo_code_id,
-        prompt_click_union_.account_id as unique_count,
-        date_trunc('day', prompt_click_union_.original_timestamp) as date,
+        account_id,
+        offer_id,
+        promo_code_id,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        prompt_click_union prompt_click_union_
-    left join correct_offer_mappings correct_offer_mappings_
-        on prompt_click_union_.account_id = correct_offer_mappings_.account_id
+        prompt_click_union
     group by all
 ),
 prompt_dismiss as (
     select
-        prompt_dismiss_union_.account_id,
-        coalesce(correct_offer_mappings_.offer_id, prompt_dismiss_union_.offer_id) as offer_id,
-        prompt_dismiss_union_.promo_code_id,
-        prompt_dismiss_union_.account_id as unique_count,
-        date_trunc('day', prompt_dismiss_union_.original_timestamp) as date,
+        account_id,
+        offer_id,
+        promo_code_id,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        prompt_dismiss_union prompt_dismiss_union_
-    left join correct_offer_mappings correct_offer_mappings_
-        on prompt_dismiss_union_.account_id = correct_offer_mappings_.account_id
+        prompt_dismiss_union
     group by all
 ),
 work_modal_1_click as (
     select
-        work_modal_1_click_union_.account_id,
-        coalesce(correct_offer_mappings_.offer_id, work_modal_1_click_union_.offer_id) as offer_id,
-        work_modal_1_click_union_.promo_code_id,
-        work_modal_1_click_union_.account_id as unique_count,
-        date_trunc('day', work_modal_1_click_union_.original_timestamp) as date,
+        account_id,
+        offer_id,
+        promo_code_id,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        work_modal_1_click_union work_modal_1_click_union_
-    left join correct_offer_mappings correct_offer_mappings_
-        on work_modal_1_click_union_.account_id = correct_offer_mappings_.account_id
+        work_modal_1_click_union
     group by all
 ),
 work_modal_1_dismiss as (
     select
-        work_modal_1_dismiss_union_.account_id,
-        coalesce(correct_offer_mappings_.offer_id, work_modal_1_dismiss_union_.offer_id) as offer_id,
-        work_modal_1_dismiss_union_.promo_code_id,
-        work_modal_1_dismiss_union_.account_id as unique_count,
-        date_trunc('day', work_modal_1_dismiss_union_.original_timestamp) as date,
+        account_id,
+        offer_id,
+        promo_code_id,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        work_modal_1_dismiss_union work_modal_1_dismiss_union_
-    left join correct_offer_mappings correct_offer_mappings_
-        on work_modal_1_dismiss_union_.account_id = correct_offer_mappings_.account_id
+        work_modal_1_dismiss_union
     group by all
 ),
 work_modal_2_click as (
     select
-        work_modal_2_click_union_.account_id,
-        coalesce(correct_offer_mappings_.offer_id, work_modal_2_click_union_.offer_id) as offer_id,
-        work_modal_2_click_union_.promo_code_id,
-        work_modal_2_click_union_.account_id as unique_count,
-        date_trunc('day', work_modal_2_click_union_.original_timestamp) as date,
+        account_id,
+        offer_id,
+        promo_code_id,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        work_modal_2_click_union work_modal_2_click_union_
-    left join correct_offer_mappings correct_offer_mappings_
-        on work_modal_2_click_union_.account_id = correct_offer_mappings_.account_id
+        work_modal_2_click_union
     group by all
 ),
 work_modal_2_dismiss as (
     select
-        work_modal_2_dismiss_union_.account_id,
-        coalesce(correct_offer_mappings_.offer_id, work_modal_2_dismiss_union_.offer_id) as offer_id,
-        work_modal_2_dismiss_union_.promo_code_id,
-        work_modal_2_dismiss_union_.account_id as unique_count,
-        date_trunc('day', work_modal_2_dismiss_union_.original_timestamp) as date,
+        account_id,
+        offer_id,
+        promo_code_id,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        work_modal_2_dismiss_union work_modal_2_dismiss_union_
-    left join correct_offer_mappings correct_offer_mappings_
-        on work_modal_2_dismiss_union_.account_id = correct_offer_mappings_.account_id
+        work_modal_2_dismiss_union
     group by all
 ),
 work_modal_2_go_back as (
     select
-        work_modal_2_go_back_union_.account_id,
-        coalesce(correct_offer_mappings_.offer_id, work_modal_2_go_back_union_.offer_id) as offer_id,
-        work_modal_2_go_back_union_.promo_code_id,
-        work_modal_2_go_back_union_.account_id as unique_count,
-        date_trunc('day', work_modal_2_go_back_union_.original_timestamp) as date,
+        account_id,
+        offer_id,
+        promo_code_id,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        work_modal_2_go_back_union work_modal_2_go_back_union_
-    left join correct_offer_mappings correct_offer_mappings_
-        on work_modal_2_go_back_union_.account_id = correct_offer_mappings_.account_id
+        work_modal_2_go_back_union
     group by all
 ),
 follow_up_close as (
     select
-        follow_up_close_union_.account_id,
-        coalesce(correct_offer_mappings_.offer_id, follow_up_close_union_.offer_id) as offer_id,
-        follow_up_close_union_.promo_code_id,
-        follow_up_close_union_.account_id as unique_count,
-        date_trunc('day', follow_up_close_union_.original_timestamp) as date,
+        account_id,
+        offer_id,
+        promo_code_id,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        follow_up_close_union follow_up_close_union_
-    left join correct_offer_mappings correct_offer_mappings_
-        on follow_up_close_union_.account_id = correct_offer_mappings_.account_id
+        follow_up_close_union
     group by all
 ),
 follow_up_dismiss as (
     select
-        follow_up_dismiss_union_.account_id,
-        coalesce(correct_offer_mappings_.offer_id, follow_up_dismiss_union_.offer_id) as offer_id,
-        follow_up_dismiss_union_.promo_code_id,
-        follow_up_dismiss_union_.account_id as unique_count,
-        date_trunc('day', follow_up_dismiss_union_.original_timestamp) as date,
+        account_id,
+        offer_id,
+        promo_code_id,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        follow_up_dismiss_union follow_up_dismiss_union_
-    left join correct_offer_mappings correct_offer_mappings_
-        on follow_up_dismiss_union_.account_id = correct_offer_mappings_.account_id
+        follow_up_dismiss_union
     group by all
 ),
 follow_up_subscription as (
     select
-        follow_up_subscription_union_.account_id,
-        coalesce(correct_offer_mappings_.offer_id, follow_up_subscription_union_.offer_id) as offer_id,
-        follow_up_subscription_union_.promo_code_id,
-        follow_up_subscription_union_.account_id as unique_count,
-        date_trunc('day', follow_up_subscription_union_.original_timestamp) as date,
+        account_id,
+        offer_id,
+        promo_code_id,
+        account_id as unique_count,
+        date_trunc('day', original_timestamp) as date,
         count(*) as total_count
     from
-        follow_up_subscription_union follow_up_subscription_union_
-    left join correct_offer_mappings correct_offer_mappings_
-        on follow_up_subscription_union_.account_id = correct_offer_mappings_.account_id
+        follow_up_subscription_union
     group by all
 ),
-
 segment_events_all_tmp as (
     select
         prompt_load_.date as loaded_date,
