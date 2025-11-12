@@ -2,7 +2,7 @@
 --- Cart funnel session query
 
 
-create or replace table sandbox.juan_salgado.cart_funnel_session as
+create or replace table _sandbox_juan_salgado.public.cart_funnel_session as
 
 
 -----------------------------------------------------

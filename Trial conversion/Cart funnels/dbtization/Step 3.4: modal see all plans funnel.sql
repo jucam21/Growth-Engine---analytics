@@ -28,7 +28,7 @@ modal_load_see_all_plans_support as (
     from modal_load_see_all_plans_click
     left join categorized_payment_events pl
         on modal_load_see_all_plans_click.account_id = pl.account_id
-        and pl.event_category = 'plan_lineup'
+        and pl.is_plan_lineup = 1
         and pl.product = 'support'
         and pl.timestamp >= modal_load_see_all_plans_click.see_all_plans_timestamp
         and datediff(minute, modal_load_see_all_plans_click.see_all_plans_timestamp, pl.timestamp) <= 120
@@ -50,7 +50,7 @@ modal_see_all_plans_support_payment_visit as (
     from modal_load_see_all_plans_support
     left join categorized_payment_events ppv
         on modal_load_see_all_plans_support.account_id = ppv.account_id
-        and ppv.event_category = 'payment_page_from_support'
+        and ppv.is_payment_page_from_support = 1
         and ppv.timestamp >= modal_load_see_all_plans_support.plan_lineup_support_timestamp
         and datediff(minute, modal_load_see_all_plans_support.plan_lineup_support_timestamp, ppv.timestamp) <= 120
     where modal_load_see_all_plans_support.plan_lineup_support_timestamp is not null
@@ -69,7 +69,7 @@ modal_see_all_plans_support_payment_submit as (
     from modal_see_all_plans_support_payment_visit
     left join categorized_payment_events pps
         on modal_see_all_plans_support_payment_visit.account_id = pps.account_id
-        and pps.event_category = 'payment_submit_all_plans'
+        and pps.is_payment_submit_all_plans = 1
         and pps.product_cta = 'support'
         and pps.timestamp >= modal_see_all_plans_support_payment_visit.ppv_support_timestamp
         and datediff(minute, modal_see_all_plans_support_payment_visit.ppv_support_timestamp, pps.timestamp) <= 120
@@ -88,7 +88,7 @@ modal_load_see_all_plans_suite as (
     from modal_load_see_all_plans_click
     left join categorized_payment_events pl
         on modal_load_see_all_plans_click.account_id = pl.account_id
-        and pl.event_category = 'plan_lineup'
+        and pl.is_plan_lineup = 1
         and pl.product <> 'support'
         and pl.timestamp >= modal_load_see_all_plans_click.see_all_plans_timestamp
         and datediff(minute, modal_load_see_all_plans_click.see_all_plans_timestamp, pl.timestamp) <= 120
@@ -110,7 +110,7 @@ modal_see_all_plans_suite_payment_visit as (
     from modal_load_see_all_plans_suite
     left join categorized_payment_events ppv
         on modal_load_see_all_plans_suite.account_id = ppv.account_id
-        and ppv.event_category = 'payment_page_from_suite'
+        and ppv.is_payment_page_from_suite = 1
         and ppv.timestamp >= modal_load_see_all_plans_suite.plan_lineup_suite_timestamp
         and datediff(minute, modal_load_see_all_plans_suite.plan_lineup_suite_timestamp, ppv.timestamp) <= 120
     where modal_load_see_all_plans_suite.plan_lineup_suite_timestamp is not null
@@ -129,7 +129,7 @@ modal_see_all_plans_suite_payment_submit as (
     from modal_see_all_plans_suite_payment_visit
     left join categorized_payment_events pps
         on modal_see_all_plans_suite_payment_visit.account_id = pps.account_id
-        and pps.event_category = 'payment_submit_all_plans'
+        and pps.is_payment_submit_all_plans = 1
         and pps.product_cta = 'zendesk_suite'
         and pps.timestamp >= modal_see_all_plans_suite_payment_visit.ppv_suite_timestamp
         and datediff(minute, modal_see_all_plans_suite_payment_visit.ppv_suite_timestamp, pps.timestamp) <= 120

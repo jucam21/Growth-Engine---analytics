@@ -30,7 +30,7 @@ modal_load_buy_now_payment_visit as (
     from modal_load_buy_now_click
     left join categorized_payment_events ppv
         on modal_load_buy_now_click.account_id = ppv.account_id
-        and ppv.event_category = 'payment_page_from_trial_buy'
+        and ppv.is_payment_page_from_trial_buy = 1
         and ppv.timestamp >= modal_load_buy_now_click.buy_now_timestamp
         and datediff(minute, modal_load_buy_now_click.buy_now_timestamp, ppv.timestamp) <= 120
     where modal_load_buy_now_click.buy_now_timestamp is not null
@@ -49,7 +49,7 @@ modal_load_buy_now_payment_submit as (
     from modal_load_buy_now_payment_visit
     left join categorized_payment_events pps
         on modal_load_buy_now_payment_visit.account_id = pps.account_id
-        and pps.event_category = 'payment_submit_buy_trial'
+        and pps.is_payment_submit_buy_trial = 1
         and pps.timestamp >= modal_load_buy_now_payment_visit.ppv_timestamp
         and datediff(minute, modal_load_buy_now_payment_visit.ppv_timestamp, pps.timestamp) <= 120
     where modal_load_buy_now_payment_visit.ppv_timestamp is not null

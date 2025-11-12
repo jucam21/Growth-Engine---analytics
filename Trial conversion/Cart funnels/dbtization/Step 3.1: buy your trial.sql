@@ -8,7 +8,7 @@ buy_your_trial_payment_page as (
     from all_modal_events all_modal_events_
     left join categorized_payment_events ppv
         on all_modal_events_.account_id = ppv.account_id
-        and ppv.event_category = 'payment_page_from_trial_buy'
+        and ppv.is_payment_page_from_trial_buy = 1
         and ppv.timestamp >= all_modal_events_.original_timestamp
         and datediff(minute, all_modal_events_.original_timestamp, ppv.timestamp) <= 120
     where 
@@ -24,7 +24,7 @@ buy_your_trial_payment_submit as (
     from buy_your_trial_payment_page buy_your_trial_payment_page_
     left join categorized_payment_events pps
         on buy_your_trial_payment_page_.account_id = pps.account_id
-        and pps.event_category = 'payment_submit_buy_trial'
+        and pps.is_payment_submit_buy_trial = 1
         and pps.timestamp >= buy_your_trial_payment_page_.ppv_timestamp
         and datediff(minute, buy_your_trial_payment_page_.ppv_timestamp, pps.timestamp) <= 120
     qualify row_number() over (partition by buy_your_trial_payment_page_.account_id, buy_your_trial_payment_page_.original_timestamp order by pps.timestamp) = 1
