@@ -978,6 +978,21 @@ limit 10
 
 
 
+select 
+    cta_name,
+    count(*) as total_accounts
+from FUNCTIONAL.GROWTH_ANALYTICS_STAGING.STEP_1_2_PAYMENT_PAGE
+group by 1
+
+
+
+select 
+    product_cta,
+    count(*) as total_accounts
+from FUNCTIONAL.GROWTH_ANALYTICS_STAGING.STEP_1_2_PAYMENT_PAGE
+group by 1
+
+
 
 
 
