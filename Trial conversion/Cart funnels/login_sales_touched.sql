@@ -976,8 +976,6 @@ limit 10
 
 
 
-
-
 select 
     cta_name,
     count(*) as total_accounts
